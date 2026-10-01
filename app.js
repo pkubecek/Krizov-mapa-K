@@ -2,7 +2,6 @@
 /* ================= konfigurace ================= */
 /* jen výchozí pohled, než se načte skutečná hranice kraje – data se podle něj neomezují */
 const KRAJ_BOUNDS = [[50.15, 12.95], [51.06, 14.65]];
-const AREA = 'area["ISO3166-2"="CZ-42"]["admin_level"="6"]->.k;';
 const OVERPASS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
@@ -10,13 +9,12 @@ const OVERPASS = [
 ];
 const MAJOR_RIVERS = /^(Labe|Ohře|Bílina|Ploučnice|Kamenice|Chomutovka|Mandava|Křinice|Liboc|Blšanka)$/;
 
+const AREA = 'area["ISO3166-2"="CZ-42"]["admin_level"="6"]->.k;';
 const Q = {
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
   prot:    { body:'relation["boundary"~"^(protected_area|national_park)$"]["protect_class"!~"^9"](area.k);way["boundary"="protected_area"]["protect_class"!~"^9"](area.k);relation["leisure"="nature_reserve"](area.k);way["leisure"="nature_reserve"](area.k);', geom:"area" },
   plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
   subst:   { body:'nwr["power"="substation"]["voltage"~"110000|220000|400000"](area.k);', geom:"point" },
-  vvn:     { body:'way["power"="line"]["voltage"~"110000|220000|400000"](area.k);', geom:"line" },
-  vn:      { body:'way["power"~"^(line|minor_line)$"]["voltage"~"^(6000|10000|22000|35000)(;|$)"](area.k);', geom:"line" },
   water:   { body:'nwr["man_made"~"^(water_works|wastewater_plant)$"](area.k);', geom:"point" },
   chem:    { body:'nwr["industrial"~"^(chemical|refinery)$"](area.k);', geom:"point" },
   police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" },
@@ -24,7 +22,6 @@ const Q = {
 };
 
 /* pomocné klasifikace */
-const vmax = t => Math.max(0, ...String(t.voltage || "").split(";").map(v => parseInt(v, 10) || 0));
 const isHeat = t => !!(t["plant:output:hot_water"] || t["plant:output:steam"] || t["plant:output:heat"] || /tepl[áa]rn|výtopn/i.test(t.name || ""));
 const mw = s => { if (!s) return 0; const m = String(s).replace(",", ".").match(/([\d.]+)\s*(kW|MW|GW)?/i); if (!m) return 0;
   const v = parseFloat(m[1]); const u = (m[2] || "MW").toUpperCase(); return u === "KW" ? v / 1000 : u === "GW" ? v * 1000 : v; };
@@ -44,6 +41,13 @@ function protCat(t) {
 }
 
 /* symboly */
+/* piktogramy (bílé, 24×24) – kříž, štít, plamen podle běžných map */
+const PICTO = {
+  kriz:   '<path d="M9.5 3h5v6.5H21v5h-6.5V21h-5v-6.5H3v-5h6.5z"/>',
+  stit:   '<path d="M12 2 20 5v6c0 5.2-3.4 9.6-8 11-4.6-1.4-8-5.8-8-11V5z"/><path fill="var(--c)" d="m12 7 1.4 2.9 3.1.4-2.3 2.2.6 3.1L12 14.1l-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z"/>',
+  plamen: '<path d="M13.5.7s.7 2.6.7 4.8c0 2-1.3 3.7-3.4 3.7-2 0-3.6-1.7-3.6-3.7v-.4C5.2 7.5 4 10.6 4 14a8 8 0 0 0 16 0c0-5.4-2.6-10.2-6.5-13.3M11.7 19a3.2 3.2 0 0 1-3.2-3.1c0-1.7 1-2.8 2.8-3.2 1.8-.3 3.6-1.2 4.6-2.6.4 1.3.6 2.7.6 4.1 0 2.6-2.1 4.8-4.8 4.8"/>'
+};
+const picto = (name, s) => `<svg viewBox="0 0 24 24" width="${Math.round(s * .78)}" height="${Math.round(s * .78)}" fill="currentColor" aria-hidden="true" style="display:block">${PICTO[name]}</svg>`;
 const mkHtml = (shape, c, glyph = "", s = 20, fg = "#fff") =>
   `<span class="mk ${shape}" style="--c:${c};--s:${s}px;--fg:${fg}">${shape === "di" ? `<span>${glyph}</span>` : glyph}</span>`;
 
@@ -125,23 +129,22 @@ const GROUPS = [
       popup: p => [p.jmeno || "Elektrárna", rows(["Typ", p.typ], ["Výkon", p.vykon != null ? p.vykon.toLocaleString("cs") + " MW" : null])] },
     { id:"tepl", q:"plants", label:"Teplárny a výtopny", note:"OSM", filter: isHeat, icon: mkHtml("di","#D84315","T",17) },
     { id:"subst", q:"subst", label:"Rozvodny 110–400 kV", icon: mkHtml("sq","#6A3FA0","R",16) },
-    { id:"vvn", q:"vvn", label:"Vedení VVN a ZVN",
-      style: t => { const v = vmax(t); return v >= 400000 ? { color:"#7F1414", weight:3.4 } : v >= 220000 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 }; },
-      legend: [ { label:"400 kV", t:{ voltage:"400000" } }, { label:"220 kV", t:{ voltage:"220000" } }, { label:"110 kV", t:{ voltage:"110000" } } ] },
-    { id:"vn", q:"vn", label:"Vedení VN 6–35 kV", note:"větší objem dat",
-      style: () => ({ color:"#7A6F9B", weight:1, opacity:.75 }) },
+    { id:"vedeni", file:"vedeni.geojson", kind:"line", label:"Elektrické vedení VVN a ZVN", note:"ZABAGED",
+      style: p => p.kv >= 400 ? { color:"#7F1414", weight:3.4 } : p.kv >= 220 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 },
+      legend: [ { label:"400 kV", t:{ kv:400 } }, { label:"220 kV", t:{ kv:220 } }, { label:"110 kV", t:{ kv:110 } } ],
+      popup: p => ["Elektrické vedení", rows(["Napětí", p.napeti])] },
     { id:"water", q:"water", label:"Úpravny vod a ČOV", icon: mkHtml("ci","#00838F","V",16) },
     { id:"chem", q:"chem", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20) }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", label:"Hasičské stanice", icon: mkHtml("sq","#C62828","H",20), on:true,
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
       popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", label:"Hasičské zbrojnice", icon: mkHtml("ci","#E57373","",11),
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"pcr", file:"policie.geojson", label:"Policie ČR", icon: mkHtml("sq","#1D3C8F","P",20), on:true,
+    { id:"pcr", file:"policie.geojson", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
-    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("ci","#5C7BD9","M",15) },
-    { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("sq","#fff","+",20,"#C62828"), on:true,
+    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("di","#5C7BD9",picto("stit",14),14) },
+    { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", q:"zzs", label:"Výjezdová stanoviště ZZS", note:"OSM", icon: mkHtml("sq","#2E7D32","+",17) },
     { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliporty letecké záchranné služby",
@@ -301,13 +304,8 @@ function loadQuery(key, onQueued) {
   const def = Q[key];
   const out = def.geom === "point" ? "out tags center;" : "out geom;";
   const p = (async () => {
-    const ck = "kmuk4:" + key;
-    try { const c = sessionStorage.getItem(ck); if (c) return JSON.parse(c); } catch (e) {}
     const json = await enqueue(() => { onQueued && onQueued(); return overpass(`[out:json][timeout:110];${AREA}(${def.body});${out}`); });
-    const feats = buildFeatures(json.elements || [], def.geom);
-    /* prázdný výsledek necachujeme – může jít o výpadek */
-    if (feats.length) try { sessionStorage.setItem(ck, JSON.stringify(feats)); } catch (e) {}
-    return feats;
+    return buildFeatures(json.elements || [], def.geom);
   })();
   p.catch(() => dataCache.delete(key));
   dataCache.set(key, p);

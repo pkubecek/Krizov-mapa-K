@@ -1,5 +1,6 @@
 "use strict";
 /* ================= konfigurace ================= */
+/* jen výchozí pohled, než se načte skutečná hranice kraje – data se podle něj neomezují */
 const KRAJ_BOUNDS = [[50.15, 12.95], [51.06, 14.65]];
 const AREA = 'area["ISO3166-2"="CZ-42"]["admin_level"="6"]->.k;';
 const OVERPASS = [
@@ -105,7 +106,7 @@ const WMS = [
 ];
 
 /* ================= mapa ================= */
-const map = L.map("map", { preferCanvas:true, zoomControl:true, maxBounds:L.latLngBounds(KRAJ_BOUNDS).pad(.2), maxBoundsViscosity:1, minZoom:8 }).fitBounds(KRAJ_BOUNDS);
+const map = L.map("map", { preferCanvas:true, zoomControl:true }).fitBounds(KRAJ_BOUNDS);
 const renderer = L.canvas({ padding:.5, tolerance:4 });
 const BASES = {
   osm:  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19, referrerPolicy:"strict-origin-when-cross-origin",
@@ -138,7 +139,26 @@ document.querySelectorAll(".base button").forEach(b => b.addEventListener("click
   document.querySelectorAll(".base button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
 }));
 
-map.createPane("wms").style.zIndex = 350;
+/* Rastrové služby (WMS/ArcGIS) se ořezávají CSS clip-path podle polygonu hranice kraje.
+   Do načtení hranice je pane skrytý, aby se nic neukázalo mimo kraj. */
+const wmsPane = map.createPane("wms");
+wmsPane.style.zIndex = 350;
+wmsPane.style.visibility = "hidden";
+let clipRings = null;
+function clipPath(toPt) {
+  return 'path(evenodd, "' + clipRings.map(r => r.map((ll, i) => {
+    const p = toPt(ll); return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1);
+  }).join("") + "Z").join("") + '")';
+}
+function updateClip(e) {
+  if (!clipRings) return;
+  const toPt = e && e.zoom != null
+    ? ll => map._latLngToNewLayerPoint(L.latLng(ll), e.zoom, e.center)
+    : ll => map.latLngToLayerPoint(ll);
+  wmsPane.style.clipPath = clipPath(toPt);
+}
+map.on("zoomanim", updateClip);
+map.on("zoomend viewreset resize", () => updateClip());
 map.createPane("areas").style.zIndex = 380;
 map.createPane("mask").style.zIndex = 390;
 map.getPane("mask").style.pointerEvents = "none";
@@ -548,21 +568,26 @@ custom.querySelector("button").addEventListener("click", () => {
 const krajReady = (async () => {
   try {
     const json = await enqueue(() => overpass('[out:json][timeout:110];relation["ISO3166-2"="CZ-42"]["admin_level"="6"];out geom;'));
-    const rel = (json.elements || [])[0]; if (!rel) return null;
+    const rel = (json.elements || [])[0]; if (!rel) { wmsPane.style.visibility = ""; return null; }
     const rings = joinRings(rel.members.filter(m => m.type === "way" && m.role !== "inner").map(m => geomLL(m.geometry))).map(closeRing);
-    if (!rings.length) return null;
-    /* vše mimo kraj zakryjeme – včetně podkladu a WMS */
+    if (!rings.length) { wmsPane.style.visibility = ""; return null; }
     const world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
-    L.polygon([world, ...rings], { stroke:false, fillColor:"#E3E6EA", fillOpacity:1, interactive:false, renderer }).addTo(map);
+    /* okolí kraje jen jemně ztlumíme – podklad zůstává vidět, data jsou ořezaná */
+    L.polygon([world, ...rings], { stroke:false, fillColor:"#1A1F2B", fillOpacity:.18, interactive:false, renderer }).addTo(map);
     const outline = L.polyline(rings, { color:"#1D3C8F", weight:2.5, interactive:false, renderer }).addTo(map);
     krajBounds = outline.getBounds();
-    map.setMaxBounds(krajBounds.pad(.1));
-    map.setMinZoom(Math.floor(map.getBoundsZoom(krajBounds, false)));
     map.fitBounds(krajBounds);
+    /* ořez rastrů: zjednodušená hranice (~20 m), aby clip-path nebyl zbytečně dlouhý */
+    try {
+      const simp = turf.simplify(turf.multiPolygon(rings.map(r => [ll2c(r)])), { tolerance:0.0002, highQuality:false });
+      clipRings = simp.geometry.coordinates.map(poly => c2ll(poly[0]));
+    } catch (e) { clipRings = rings; }
+    updateClip();
+    wmsPane.style.visibility = "";
     const poly = turf.multiPolygon(rings.map(r => [ll2c(r)]));
     const c = krajBounds.getCenter();
     return { poly, line: turf.multiLineString(rings.map(ll2c)), inside: buildRaster(rings), center:[c.lat, c.lng] };
-  } catch (e) { console.warn("Hranici kraje nelze načíst, data nebudou ořezaná:", e); return null; }
+  } catch (e) { console.warn("Hranici kraje nelze načíst, data nebudou ořezaná:", e); wmsPane.style.visibility = ""; return null; }
 })();
 krajReady.then(() => { for (const id in state) if (state[id].cb.checked) toggleVector(id); });
 

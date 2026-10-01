@@ -85,7 +85,7 @@ const GROUPS = [
   { title: "Administrativní hranice", layers: [
     { id:"kraj", file:"kraj.geojson", kind:"line", label:"Hranice Ústeckého kraje", on:true,
       style: () => ({ color:"#1D3C8F", weight:3, opacity:.9, fill:false }),
-     }
+      }
   ]},
   { title: "Vodní toky a plochy", layers: [
     { id:"toky", file:"vodni_toky.geojson", kind:"line", label:"Vodní toky", note:"pojmenované toky, ZABAGED",

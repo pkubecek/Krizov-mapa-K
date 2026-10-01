@@ -60,8 +60,9 @@ const GROUPS = [
       style: () => ({ color:"#1D3C8F", weight:3, opacity:.9 }) }
   ]},
   { title: "Vodní toky a nádrže", layers: [
-    { id:"rivers", q:"rivers", label:"Řeky", note:"Labe a Ohře zvýrazněné", sw:{line:"#2B7BB9"},
-      style: t => ({ color:"#2B7BB9", weight: /^(Labe|Ohře)$/.test(t.name||"") ? 5 : MAJOR_RIVERS.test(t.name||"") ? 3 : 1.6, opacity:.9 }) },
+    { id:"rivers", q:"rivers", label:"Řeky", sw:{line:"#2B7BB9"},
+      style: t => ({ color:"#2B7BB9", weight: /^(Labe|Ohře)$/.test(t.name||"") ? 5 : MAJOR_RIVERS.test(t.name||"") ? 3 : 1.6, opacity:.9 }),
+      legend: [ { label:"Labe, Ohře", t:{ name:"Labe" } }, { label:"Bílina, Ploučnice, Kamenice a další", t:{ name:"Bílina" } }, { label:"ostatní řeky", t:{} } ] },
     { id:"canals", q:"canals", label:"Kanály", sw:{line:"#2B7BB9", dash:true},
       style: () => ({ color:"#2B7BB9", weight:2.2, dashArray:"5 4" }) },
     { id:"res", q:"res", label:"Vodní nádrže", note:"plocha nad 5 ha", sw:{area:"#5AA7DA", c:"#1F5F94"},
@@ -82,8 +83,9 @@ const GROUPS = [
     { id:"elek", q:"plants", label:"Elektrárny", note:"bez FVE pod 5 MW", filter: isElec, icon: mkHtml("di","#F2C200","E",17,"#1A1F2B") },
     { id:"tepl", q:"plants", label:"Teplárny a výtopny", filter: isHeat, icon: mkHtml("di","#D84315","T",17) },
     { id:"subst", q:"subst", label:"Rozvodny 110–400 kV", icon: mkHtml("sq","#6A3FA0","R",16) },
-    { id:"vvn", q:"vvn", label:"Vedení VVN a ZVN", note:"400 / 220 / 110 kV", sw:{line:"#D0312D"},
-      style: t => { const v = vmax(t); return v >= 400000 ? { color:"#7F1414", weight:3.4 } : v >= 220000 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 }; } },
+    { id:"vvn", q:"vvn", label:"Vedení VVN a ZVN", sw:{line:"#D0312D"},
+      style: t => { const v = vmax(t); return v >= 400000 ? { color:"#7F1414", weight:3.4 } : v >= 220000 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 }; },
+      legend: [ { label:"400 kV", t:{ voltage:"400000" } }, { label:"220 kV", t:{ voltage:"220000" } }, { label:"110 kV", t:{ voltage:"110000" } } ] },
     { id:"vn", q:"vn", label:"Vedení VN 6–35 kV", note:"větší objem dat", sw:{line:"#7A6F9B"},
       style: () => ({ color:"#7A6F9B", weight:1, opacity:.75 }) },
     { id:"water", q:"water", label:"Úpravny vod a ČOV", icon: mkHtml("ci","#00838F","V",16) },
@@ -303,10 +305,27 @@ function popup(def, f) {
 /* ================= vektorové vrstvy ================= */
 const host = document.getElementById("layers");
 const icons = {};
+/* Legenda se kreslí ze stejné funkce style() jako mapa – barva, tloušťka, čárkování i průhlednost sedí 1:1.
+   Výchozí hodnoty odpovídají výchozím hodnotám L.Path v Leafletu. */
+function svgSwatch(st, kind) {
+  const color = st.color ?? "#3388ff", w = st.weight ?? 3, op = st.opacity ?? 1;
+  const dash = st.dashArray ? ` stroke-dasharray="${st.dashArray}"` : "";
+  const stroke = `stroke="${color}" stroke-width="${w}" stroke-opacity="${op}" stroke-linecap="round" stroke-linejoin="round"${dash}`;
+  if (kind === "area") {
+    const fill = st.fillColor ?? color, fop = st.fillOpacity ?? .2, pad = Math.max(w / 2, .5);
+    return `<svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><rect x="${pad + 1}" y="${pad + 1}" width="${26 - 2 * pad}" height="${16 - 2 * pad}" rx="1.5" fill="${fill}" fill-opacity="${fop}" ${st.stroke === false ? "" : stroke}/></svg>`;
+  }
+  return `<svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><line x1="${w / 2 + 1}" y1="9" x2="${27 - w / 2}" y2="9" ${stroke}/></svg>`;
+}
+const LAYER_KIND = def => def.icon ? "point" : Q[def.q].geom === "area" ? "area" : "line";
 function swatch(def) {
   if (def.icon) return def.icon;
-  if (def.sw.line) return `<span class="sw-line${def.sw.dash ? " sw-dash" : ""}" style="--c:${def.sw.line}"></span>`;
-  return `<span class="sw-area" style="--f:${def.sw.area};--c:${def.sw.c}"></span>`;
+  const sample = def.legend ? def.legend[def.legend.length - 1].t : {};
+  return svgSwatch(def.style(sample), LAYER_KIND(def));
+}
+function legendRows(def) {
+  if (!def.legend) return "";
+  return `<div class="leg">${def.legend.map(c => `<div class="leg-row"><span class="sw">${svgSwatch(def.style(c.t), LAYER_KIND(def))}</span><span>${esc(c.label)}</span></div>`).join("")}</div>`;
 }
 function buildLayer(def, feats) {
   const g = L.layerGroup(); let n = 0;
@@ -336,6 +355,7 @@ for (const grp of GROUPS) {
     cb.addEventListener("change", () => toggleVector(def.id));
     st.addEventListener("click", e => { if (st.classList.contains("err")) { e.preventDefault(); cb.checked = true; toggleVector(def.id); } });
     sec.appendChild(row);
+    if (def.legend) sec.insertAdjacentHTML("beforeend", legendRows(def));
     if (def.on) cb.checked = true;
   }
   host.appendChild(sec);
@@ -386,7 +406,13 @@ async function capabilities(url) {
     const kids = [...l.children];
     const name = kids.find(c => c.localName === "Name")?.textContent;
     const hasSub = kids.some(c => c.localName === "Layer");
-    if (name && !hasSub) out.push({ name, title: kids.find(c => c.localName === "Title")?.textContent || name });
+    if (name && !hasSub) {
+      const lu = l.getElementsByTagName("LegendURL")[0]?.getElementsByTagName("OnlineResource")[0];
+      const href = lu && (lu.getAttribute("xlink:href") || lu.getAttributeNS("http://www.w3.org/1999/xlink", "href"));
+      const legend = href ? [{ src: href, label: "" }]
+        : [{ src: url + (url.includes("?") ? "&" : "?") + "SERVICE=WMS&REQUEST=GetLegendGraphic&VERSION=1.1.1&FORMAT=image/png&LAYER=" + encodeURIComponent(name), label: "" }];
+      out.push({ name, title: kids.find(c => c.localName === "Title")?.textContent || name, legend });
+    }
   }
   if (!out.length) throw new Error("Služba nevrátila žádné vrstvy");
   return out;
@@ -409,14 +435,20 @@ async function arcLayers(url) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "chyba služby");
-  const out = (j.layers || []).filter(l => !l.subLayerIds || !l.subLayerIds.length).map(l => ({ name:String(l.id), title:l.name }));
+  const out = (j.layers || []).filter(l => !l.subLayerIds || !l.subLayerIds.length).map(l => ({ name:String(l.id), title:l.name, legend:[] }));
   if (!out.length) throw new Error("Služba nevrátila žádné vrstvy");
+  /* legenda ArcGIS: symboly jako base64 obrázky přímo z renderovacího stylu služby */
+  try {
+    const lj = await (await fetchCors(url + "/legend?f=json")).json();
+    const byId = new Map((lj.layers || []).map(l => [String(l.layerId), l.legend || []]));
+    for (const l of out) l.legend = (byId.get(l.name) || []).map(e => ({ src:`data:${e.contentType || "image/png"};base64,${e.imageData}`, label:e.label || "" }));
+  } catch (e) { console.warn("[Legenda] " + url, e.message); }
   return out;
 }
 function addWms(cfg) {
   const wrap = document.createElement("div");
   const row = document.createElement("label"); row.className = "item";
-  row.innerHTML = `<input type="checkbox"><span class="sw"><span class="sw-area" style="--f:repeating-linear-gradient(45deg,#5AA7DA55 0 3px,transparent 3px 6px);--c:#1F5F94"></span></span><span class="lbl">${esc(cfg.label)}${cfg.note ? `<small>${esc(cfg.note)}</small>` : ""}</span><span class="st"></span>`;
+  row.innerHTML = `<input type="checkbox"><span class="sw"><svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><rect x="1" y="1" width="26" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="2 2"/></svg></span><span class="lbl">${esc(cfg.label)}${cfg.note ? `<small>${esc(cfg.note)}</small>` : ""}</span><span class="st"></span>`;
   const sub = document.createElement("div"); sub.className = "sub"; sub.hidden = true;
   wrap.append(row, sub); wsec.appendChild(wrap);
   const cb = row.querySelector("input"), st = row.querySelector(".st");
@@ -449,7 +481,9 @@ function addWms(cfg) {
     const pre = layers.filter(l => cfg.pick && (cfg.pick.test(l.title) || cfg.pick.test(l.name)));
     const chosen = new Set((pre.length ? pre : layers.slice(0, 1)).slice(0, 12).map(l => l.name));
     s.names = layers.filter(l => chosen.has(l.name)).map(l => l.name);
-    sub.innerHTML = layers.map((l, i) => `<label><input type="checkbox" data-n="${esc(l.name)}" ${chosen.has(l.name) ? "checked" : ""}><span>${esc(l.title)}</span></label>`).join("") +
+    sub.innerHTML = layers.map(l => `<label><input type="checkbox" data-n="${esc(l.name)}" ${chosen.has(l.name) ? "checked" : ""}><span>${esc(l.title)}${
+        (l.legend || []).length ? `<span class="wleg">${l.legend.map(e => `<span class="wleg-row"><img src="${esc(e.src)}" alt="" loading="lazy" onerror="this.parentNode.remove()">${e.label ? `<span>${esc(e.label)}</span>` : ""}</span>`).join("")}</span>` : ""
+      }</span></label>`).join("") +
       `<div class="op">Průhlednost<input type="range" min="0.1" max="1" step="0.05" value="0.7" aria-label="Průhlednost vrstvy"></div>`;
     sub.querySelectorAll("input[type=checkbox]").forEach(c => c.addEventListener("change", () => {
       s.names = [...sub.querySelectorAll("input[type=checkbox]:checked")].map(x => x.dataset.n);
@@ -459,7 +493,12 @@ function addWms(cfg) {
         if (!map.hasLayer(s.layer)) s.layer.addTo(map);
       } else mountWms(s);
     }));
-    sub.querySelector("input[type=range]").addEventListener("input", e => s.layer && s.layer.setOpacity(+e.target.value));
+    const syncLegendOpacity = v => sub.querySelectorAll(".wleg img").forEach(img => img.style.opacity = v);
+    syncLegendOpacity(.7);
+    sub.querySelector("input[type=range]").addEventListener("input", e => { s.layer && s.layer.setOpacity(+e.target.value); syncLegendOpacity(e.target.value); });
+    /* hlavní symbol řádku = první symbol z legendy služby */
+    const first = layers.flatMap(l => l.legend || [])[0];
+    if (first) row.querySelector(".sw").innerHTML = `<img class="wsym" src="${esc(first.src)}" alt="" onerror="this.remove()">`;
     st.className = "st"; st.textContent = layers.length + " vrstev";
     if (s.names.length) mountWms(s);
   });

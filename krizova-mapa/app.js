@@ -1,127 +1,3 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Krizová mapa Ústeckého kraje</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --orange:#E8792B; --blue:#1D3C8F; --ink:#1A1F2B; --paper:#F5F6F4;
-  --panel:#FFFFFF; --line:#D9DDE2; --muted:#5E6673; --hover:#EEF1F6;
-  --ok:#2E7D32; --err:#B3261E;
-  --ui:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
-  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
-  box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --ink:#E9ECF2; --paper:#14171E; --panel:#1C2029; --line:#323846; --muted:#9AA3B2; --hover:#262B36;
-  }
-}
-*,*::before,*::after{box-sizing:inherit}
-html,body{height:100%;margin:0}
-body{font-family:var(--body);color:var(--ink);background:var(--paper);display:flex;overflow:hidden}
-
-/* ---------- panel ---------- */
-#panel{width:340px;flex:none;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:1000}
-.head{display:flex;gap:12px;align-items:center;padding:14px 16px;background:var(--orange);color:#1A1F2B}
-.emblem{width:38px;height:38px;flex:none;background:var(--orange);border:2px solid #1A1F2B;display:grid;place-items:center}
-.emblem svg{width:30px;height:30px}
-.head h1{font:700 21px/1.05 var(--ui);margin:0;letter-spacing:.2px}
-.head p{font:500 13px/1.2 var(--ui);margin:3px 0 0;opacity:.85}
-.base{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line)}
-.base button{flex:1;font:600 13px var(--ui);padding:6px 4px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer}
-.base button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
-.scroll{overflow-y:auto;flex:1;padding-bottom:20px}
-.group h2{font:700 15px var(--ui);margin:0;padding:14px 16px 6px;color:var(--blue)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .group h2{color:#8FA8EA}}
-.item{display:grid;grid-template-columns:20px 26px 1fr auto;align-items:center;gap:8px;padding:6px 16px;cursor:pointer;user-select:none}
-.item:hover{background:var(--hover)}
-.item input{width:16px;height:16px;margin:0;accent-color:var(--blue);cursor:pointer}
-.item .lbl{font:500 15px/1.2 var(--ui)}
-.item .lbl small{display:block;font:400 12px var(--body);color:var(--muted)}
-.st{font:500 12px var(--ui);color:var(--muted);white-space:nowrap}
-.st.err{color:var(--err);cursor:pointer;text-decoration:underline}
-.st.load::before{content:"";display:inline-block;width:10px;height:10px;border:2px solid var(--muted);border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
-@keyframes sp{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion: reduce){.st.load::before{animation:none}}
-.sw{display:grid;place-items:center;height:20px}
-.sw-line{width:24px;height:0;border-top:3px solid var(--c)}
-.sw-dash{border-top-style:dashed}
-.sw-area{width:22px;height:14px;background:var(--f);border:1.5px solid var(--c);border-radius:2px}
-.sub{padding:2px 16px 10px 62px;font:400 13px var(--body)}
-.sub label{display:flex;gap:6px;align-items:flex-start;padding:2px 0;cursor:pointer}
-.sub input[type=checkbox]{margin-top:2px;accent-color:var(--blue)}
-.sub .op{display:flex;align-items:center;gap:8px;margin-top:6px;color:var(--muted);font:500 12px var(--ui)}
-.sub .op input{flex:1;accent-color:var(--blue)}
-.sub .note{color:var(--muted);font-size:12px;margin:4px 0}
-.sub a{color:var(--blue)}
-.custom{padding:8px 16px 4px}
-.custom input{width:100%;font:400 13px var(--body);padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--ink)}
-.custom button{margin-top:6px;font:600 13px var(--ui);padding:6px 12px;border:0;border-radius:4px;background:var(--blue);color:#fff;cursor:pointer}
-.foot{padding:10px 16px;border-top:1px solid var(--line);font:400 11.5px/1.4 var(--body);color:var(--muted)}
-.foot a{color:inherit}
-:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
-
-/* ---------- map ---------- */
-#map{flex:1;height:100%;background:#dfe3e6}
-.leaflet-container{font-family:var(--body)}
-.mk{display:grid;place-items:center;width:var(--s,20px);height:var(--s,20px);background:var(--c);color:var(--fg,#fff);
-  font:700 11px/1 var(--ui);border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 1px 3px rgba(0,0,0,.3)}
-.mk.sq{border-radius:3px}.mk.ci{border-radius:50%}
-.mk.di{transform:rotate(45deg);border-radius:2px}.mk.di>span{transform:rotate(-45deg)}
-.mk.tri{clip-path:polygon(50% 0,100% 100%,0 100%);border:0;box-shadow:none;padding-top:5px}
-.pt{background:none;border:0;display:grid;place-items:center}
-.leaflet-popup-content{margin:12px 14px;min-width:200px}
-.pp h3{font:700 16px/1.15 var(--ui);margin:0 0 2px}
-.pp .k{font:500 12px var(--ui);color:#5E6673;margin:0 0 8px}
-.pp dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0 0 8px;font-size:13px}
-.pp dt{color:#5E6673}.pp dd{margin:0}
-.pp a{font-size:12px}
-.toggle{display:none}
-.leaflet-control.homebtn a{font:700 16px/30px var(--ui);text-align:center}
-
-/* ---------- mobile ---------- */
-@media (max-width:760px){
-  body{display:block}
-  #map{position:absolute;inset:0}
-  #panel{position:fixed;left:0;right:0;bottom:0;width:auto;height:72%;border-right:0;border-top:1px solid var(--line);
-    transform:translateY(calc(100% + 10px));transition:transform .25s ease;box-shadow:0 -6px 24px rgba(0,0,0,.25);
-    padding-bottom:env(safe-area-inset-bottom,0px)}
-  body.open #panel{transform:none}
-  @media (prefers-reduced-motion: reduce){#panel{transition:none}}
-  .toggle{display:block;position:fixed;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:1100;
-    font:700 15px var(--ui);padding:10px 16px;border:0;border-radius:6px;background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-  body.open .toggle{bottom:calc(72% + 12px)}
-}
-</style>
-</head>
-<body>
-<aside id="panel" aria-label="Vrstvy mapy">
-  <div class="head">
-    <div class="emblem" aria-hidden="true"><svg viewBox="0 0 30 30"><polygon points="15,3 28,26 2,26" fill="#1D3C8F"/></svg></div>
-    <div><h1>Krizová mapa Ústeckého kraje</h1><p>Rizika, infrastruktura a složky IZS</p></div>
-  </div>
-  <div class="base" role="group" aria-label="Podkladová mapa">
-    <button data-base="osm" aria-pressed="true">OSM</button>
-    <button data-base="orto" aria-pressed="false">Ortofoto</button>
-  </div>
-  <div class="scroll" id="layers"></div>
-  <div class="foot">
-    Vektorová data: © přispěvatelé <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (ODbL), načítáno živě přes Overpass API. Ortofoto: ČÚZK. Rastrové vrstvy: VÚV TGM, AOPK ČR, ČGS. Zobrazeno pouze území Ústeckého kraje. Pouze orientační – nenahrazuje dokumentaci krizového a havarijního plánu.
-  </div>
-</aside>
-<div id="map" role="application" aria-label="Mapa"></div>
-<button class="toggle" id="toggle" aria-expanded="false" aria-controls="panel">Vrstvy</button>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-<script>
 "use strict";
 /* ================= konfigurace ================= */
 const KRAJ_BOUNDS = [[50.15, 12.95], [51.06, 14.65]];
@@ -538,9 +414,22 @@ wsec.innerHTML = `<h2>Rastrové služby (WMS)</h2>`;
 host.appendChild(wsec);
 const wmsState = {};
 
+/* GetCapabilities / ArcGIS JSON: nejdřív přímo, při CORS nebo chybě přes serverless proxy na Vercelu */
+async function fetchCors(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r;
+  } catch (e) {
+    if (!/^https?:$/.test(location.protocol)) throw e;
+    const r = await fetch("/api/proxy?url=" + encodeURIComponent(url));
+    if (!r.ok) throw new Error("proxy HTTP " + r.status + " (" + e.message + ")");
+    return r;
+  }
+}
 async function capabilities(url) {
   const sep = url.includes("?") ? "&" : "?";
-  const r = await fetch(url + sep + "SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0");
+  const r = await fetchCors(url + sep + "SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0");
   if (!r.ok) throw new Error("HTTP " + r.status);
   const doc = new DOMParser().parseFromString(await r.text(), "text/xml");
   const out = [];
@@ -567,7 +456,7 @@ const ArcTile = L.TileLayer.extend({
   }
 });
 async function arcLayers(url) {
-  const r = await fetch(url + "?f=json");
+  const r = await fetchCors(url + "?f=json");
   if (!r.ok) throw new Error("HTTP " + r.status);
   const j = await r.json();
   if (j.error) throw new Error(j.error.message || "chyba služby");
@@ -680,6 +569,3 @@ krajReady.then(() => { for (const id in state) if (state[id].cb.checked) toggleV
 /* mobil */
 const tg = document.getElementById("toggle");
 tg.addEventListener("click", () => { const o = document.body.classList.toggle("open"); tg.setAttribute("aria-expanded", String(o)); tg.textContent = o ? "Mapa" : "Vrstvy"; });
-</script>
-</body>
-</html>

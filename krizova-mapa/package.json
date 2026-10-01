@@ -1,0 +1,11 @@
+{
+  "name": "krizova-mapa-ustecky-kraj",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Krizová mapa Ústeckého kraje – Leaflet + Overpass + WMS/ArcGIS",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "engines": { "node": "22.x" }
+}

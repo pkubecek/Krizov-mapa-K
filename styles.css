@@ -92,3 +92,9 @@ body{font-family:var(--body);color:var(--ink);background:var(--paper);display:fl
     font:700 15px var(--ui);padding:10px 16px;border:0;border-radius:6px;background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
   body.open .toggle{bottom:calc(72% + 12px)}
 }
+
+.pkr-pp h2{font:700 16px/1.15 var(--ui);margin:0 0 6px}
+.pkr-pp table{border-collapse:collapse;font-size:13px;width:100%!important;margin-bottom:6px}
+.pkr-pp td{padding:2px 6px 2px 0;vertical-align:top}
+.pkr-pp td p{margin:0}
+.pkr-pp td.heading{color:#5E6673;white-space:nowrap}

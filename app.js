@@ -112,6 +112,48 @@ const WMS = [
     url:"https://mapy.geology.cz/arcgis/rest/services/Dulni_Dila/poddolovana_uzemi/MapServer", pick:/./ }
 ];
 
+/* ================= Portál krizového řízení ÚK (SyPOS) ================= */
+/* Body se tahají z API "?fmt=poi_layer" stejnými parametry, jaké posílá mapa portálu.
+   Souřadnice jsou v S-JTSK (EPSG:5514): geom.lon = X (východ), geom.lat = Y (sever). */
+const PKR = "https://pkr.kr-ustecky.cz";
+const PKR_TILES = ["0_0_0","0_1_0","0_2_0","0_3_0","1_0_0","1_1_0","1_2_0","1_3_0","2_0_0","2_1_0","2_2_0","2_3_0","3_0_0","3_1_0","3_2_0","3_3_0"].join(",");
+const PKR_PARAMS = "fmt=poi_layer&map=gis_izs&base_layer_index=0" +
+  "&max_extent_min_x=-1005448.4319539107&max_extent_min_y=-1326543.9442316927" +
+  "&max_extent_max_x=-331439.78833832964&max_extent_max_y=-833114.4082059488" +
+  "&resolution=529.1677250021168&tileSizeH=256&tileSizeW=256&tiles=" + encodeURIComponent(PKR_TILES) + "&_bulk=1";
+const PKR_OHR = "/pkr/zdroje-ohrozeni/situace/udalost/";
+const PKR_PROV = "/pkr/zdroje-ohrozeni/provoz/provozovna/";
+const PKR_PRIR = "/pkr/zdroje-ohrozeni/prirodni_zdroje/aktivum/";
+const PKR_ICON_H = 24;   /* stejná výška ikony v mapě i v legendě */
+const pkrIconHtml = src => `<img src="${PKR + src}" alt="" style="height:${PKR_ICON_H}px;width:auto;display:block">`;
+const PKR_GROUPS = [
+  { title: "PKR ÚK – ohrožení", layers: [
+    { id:"pkr_pov",  path:PKR_OHR, sub:"7",         label:"Povodně", ico:"/media/icons/u/7.gif" },
+    { id:"pkr_ses",  path:PKR_OHR, sub:"2,3,4,5,6", label:"Sesuvy, posuvy, odvaly, proudy", ico:"/media/icons/u/2.gif" },
+    { id:"pkr_dn",   path:PKR_OHR, sub:"15",        label:"Úseky častých dopravních nehod", ico:"/media/icons/u/15.gif" },
+    { id:"pkr_zhp",  path:PKR_OHR, sub:"12",        label:"Zóny havarijního plánování", ico:"/media/icons/u/12.gif" },
+    { id:"pkr_mu",   path:"/pkr/zdroje-ohrozeni/jos/resenaudalost/", label:"Řešené MU/KS", note:"aktuálně řešené události", ico:"/static/situace/img/aktualni_udalost.gif" }
+  ]},
+  { title: "PKR ÚK – základní evidence", layers: [
+    { id:"pkr_ps",   path:PKR_PROV, sub:"14", label:"Požární stanice", ico:"/media/icons/p/14.gif" },
+    { id:"pkr_zbr",  path:PKR_PROV, sub:"21", label:"Hasičské zbrojnice", ico:"/media/icons/p/21.gif" },
+    { id:"pkr_pol",  path:PKR_PROV, sub:"17", label:"Policejní služebny", ico:"/media/icons/p/17.gif" },
+    { id:"pkr_zzs",  path:PKR_PROV, sub:"19", label:"Výjezdová stanoviště ZZS", ico:"/media/icons/p/19.gif" },
+    { id:"pkr_uszzs",path:PKR_PROV, sub:"18", label:"Územní střediska ZZS", ico:"/media/icons/p/18.gif" },
+    { id:"pkr_prum", path:PKR_PROV, sub:"8",  label:"Průmyslové areály", ico:"/media/icons/p/8.gif" },
+    { id:"pkr_cs",   path:PKR_PROV, sub:"6",  label:"Čerpací stanice", ico:"/media/icons/p/6.gif" }
+  ]},
+  { title: "PKR ÚK – přírodní zdroje", layers: [
+    { id:"pkr_nadr", path:PKR_PRIR, sub:"131", label:"Významné vodní nádrže", ico:"/media/icons/a/131.gif" },
+    { id:"pkr_opvz", path:PKR_PRIR, sub:"126", label:"Ochranná pásma vodních zdrojů", ico:"/media/icons/a/126.gif" },
+    { id:"pkr_chop", path:PKR_PRIR, sub:"120", label:"CHOPAV", note:"přirozená akumulace podzemních vod", ico:"/media/icons/a/120.gif" }
+  ]}
+];
+for (const g of PKR_GROUPS) {
+  for (const d of g.layers) { d.pkr = true; d.icon = pkrIconHtml(d.ico); }
+  GROUPS.push(g);
+}
+
 /* ================= mapa ================= */
 const map = L.map("map", { preferCanvas:true, zoomControl:true }).fitBounds(KRAJ_BOUNDS);
 const renderer = L.canvas({ padding:.5, tolerance:4 });
@@ -360,14 +402,107 @@ for (const grp of GROUPS) {
   }
   host.appendChild(sec);
 }
+/* ================= PKR loader ================= */
+proj4.defs("EPSG:5514", "+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813972222222 +k=0.9999 +x_0=0 +y_0=0 +ellps=bessel +towgs84=589,76,480,0,0,0,0 +units=m +no_defs");
+const sjtsk2ll = (x, y) => { const [lon, lat] = proj4("EPSG:5514", "EPSG:4326", [x, y]); return [lat, lon]; };
+
+/* Odpověď API má různé obaly (bulk dlaždice, result_items/ret, markers) – projdeme ji celou
+   a sebereme každý objekt, který má souřadnice v geom. */
+function collectPois(node, out, seen) {
+  if (Array.isArray(node)) { for (const n of node) collectPois(n, out, seen); return; }
+  if (!node || typeof node !== "object") return;
+  if (node.geom && node.geom.lon != null && node.geom.lat != null) {
+    const key = node.uuid || node.id + "@" + node.url_prefix;
+    if (!seen.has(key)) { seen.add(key); out.push(node); }
+    return;
+  }
+  for (const k in node) if (node[k] && typeof node[k] === "object") collectPois(node[k], out, seen);
+}
+const pkrCache = new Map();
+function loadPkr(def) {
+  if (pkrCache.has(def.id)) return pkrCache.get(def.id);
+  const url = PKR + def.path + "?" + PKR_PARAMS + (def.sub ? "&sublayers=" + encodeURIComponent(def.sub) : "");
+  const p = (async () => {
+    const r = await fetchCors(url);
+    const txt = await r.text();
+    let json;
+    try { json = JSON.parse(txt); } catch (e) { throw new Error("Portál nevrátil JSON (" + txt.slice(0, 60).replace(/\s+/g, " ") + "…)"); }
+    const items = []; collectPois(json, items, new Set());
+    return items.map(it => {
+      const x = parseFloat(it.geom.lon), y = parseFloat(it.geom.lat);
+      return { it, ll: sjtsk2ll(x, y) };
+    }).filter(f => isFinite(f.ll[0]) && isFinite(f.ll[1]));
+  })();
+  p.catch(() => pkrCache.delete(def.id));
+  pkrCache.set(def.id, p);
+  return p;
+}
+
+/* HTML popupu z portálu: odstraníme skripty a handlery, relativní odkazy převedeme na absolutní */
+function cleanPkrHtml(html, base) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script,style,iframe,object,embed,form").forEach(n => n.remove());
+  doc.querySelectorAll("*").forEach(el => {
+    for (const a of [...el.attributes]) {
+      if (/^on/i.test(a.name)) el.removeAttribute(a.name);
+      else if ((a.name === "href" || a.name === "src") && a.value) {
+        if (/^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+        else try { el.setAttribute(a.name, new URL(a.value, base).href); } catch (e) {}
+      }
+    }
+    if (el.tagName === "A") { el.setAttribute("target", "_blank"); el.setAttribute("rel", "noopener"); }
+  });
+  return doc.body.innerHTML;
+}
+async function pkrPopupHtml(def, it) {
+  const base = PKR + (it.url_prefix || def.path);
+  let html = it.popup;
+  if (!html && it.popup_url) {
+    const r = await fetchCors(new URL(it.popup_url, base).href);
+    const txt = await r.text();
+    try {
+      const j = JSON.parse(txt);
+      html = j?.result_items?.[0]?.ret?.[0]?.popup || "";
+    } catch (e) { html = txt; }
+  }
+  const detail = new URL(it.url_prefix && /\/\d+\/$/.test(it.url_prefix) ? it.url_prefix : (it.url_prefix || def.path) + (it.id ? it.id + "/" : ""), PKR).href;
+  return `<div class="pp pkr-pp">${html ? cleanPkrHtml(html, base) : `<h3>${esc(it.name || def.label)}</h3>`}` +
+    `<p class="k">${esc(def.label)} · <a href="${esc(detail)}" target="_blank" rel="noopener">Detail v portálu</a></p></div>`;
+}
+const pkrIcons = new Map();
+function pkrIcon(it, def) {
+  const src = it.iu || def.ico;
+  const iw = +it.iw || PKR_ICON_H, ih = +it.ih || PKR_ICON_H;
+  const w = Math.round(PKR_ICON_H * iw / ih), key = src + "|" + w;
+  if (!pkrIcons.has(key)) pkrIcons.set(key, L.icon({ iconUrl: PKR + src, iconSize:[w, PKR_ICON_H], iconAnchor:[w / 2, PKR_ICON_H / 2], popupAnchor:[0, -PKR_ICON_H / 2] }));
+  return pkrIcons.get(key);
+}
+function buildPkrLayer(def, feats) {
+  const g = L.layerGroup();
+  for (const f of feats) {
+    const m = L.marker(f.ll, { icon: pkrIcon(f.it, def), title: f.it.name || def.label, keyboard:false });
+    m.bindPopup(`<div class="pp"><h3>${esc(f.it.name || def.label)}</h3><p class="k">Načítám detail…</p></div>`, { maxWidth: 360 });
+    let loaded = false;
+    m.on("popupopen", async () => {
+      if (loaded) return; loaded = true;
+      try { m.setPopupContent(await pkrPopupHtml(def, f.it)); }
+      catch (e) { loaded = false; m.setPopupContent(`<div class="pp"><h3>${esc(f.it.name || def.label)}</h3><p class="k">Detail se nepodařilo načíst (${esc(e.message)}).</p></div>`); }
+    });
+    g.addLayer(m);
+  }
+  return { g, n: feats.length };
+}
+
 async function toggleVector(id) {
   const s = state[id];
   if (!s.cb.checked) { if (s.layer) map.removeLayer(s.layer); return; }
   if (s.layer) { s.layer.addTo(map); return; }
   s.st.className = "st load"; s.st.textContent = " ve frontě";
   try {
-    const feats = await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
-    const { g, n } = buildLayer(s.def, feats);
+    const feats = s.def.pkr
+      ? (s.st.textContent = " načítám", await loadPkr(s.def))
+      : await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
+    const { g, n } = s.def.pkr ? buildPkrLayer(s.def, feats) : buildLayer(s.def, feats);
     s.layer = g; s.st.className = "st"; s.st.textContent = n.toLocaleString("cs");
     if (id === "kraj" && n) { krajBounds = L.featureGroup(g.getLayers()).getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }
     if (s.cb.checked) g.addTo(map);

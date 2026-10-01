@@ -101,7 +101,7 @@ const GROUPS = [
       popup: p => [p.cislo || "Silnice", rows(["Kategorie", ({ D1:"dálnice", D2:"dálnice II. třídy", I:"silnice I. třídy" }[p.trida] || "") + (p.vetev ? " – větev" : "")])] },
     { id:"zeleznice", file:"zeleznice.geojson", kind:"line", label:"Železniční tratě",
       style: zelezniceStyle,
-      legend: [ { label:"elektrizovaná", t:{ elektr:1 } }, { label:"neelektrizovaná", t:{ elektr:0 } } ],
+      legend: [ { label:"elektrifikovaná", t:{ elektr:1 } }, { label:"neelektrifikovaná", t:{ elektr:0 } } ],
       popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrifikovaná" : "neelektrifikovaná"])] }
   ]},
   { title: "Kritická infrastruktura", layers: [

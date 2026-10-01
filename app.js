@@ -11,6 +11,7 @@ const OVERPASS = [
 const MAJOR_RIVERS = /^(Labe|Ohře|Bílina|Ploučnice|Kamenice|Chomutovka|Mandava|Křinice|Liboc|Blšanka)$/;
 
 const Q = {
+  kraj:    { body:'relation["ISO3166-2"="CZ-42"]["admin_level"="6"];', geom:"boundary" },
   rivers:  { body:'way["waterway"="river"](area.k);', geom:"line" },
   canals:  { body:'way["waterway"="canal"](area.k);', geom:"line" },
   res:     { body:'way["water"="reservoir"](area.k);relation["water"="reservoir"](area.k);way["landuse"="reservoir"](area.k);relation["landuse"="reservoir"](area.k);', geom:"area" },
@@ -54,6 +55,10 @@ const mkHtml = (shape, c, glyph = "", s = 20, fg = "#fff") =>
 
 /* ================= definice vrstev ================= */
 const GROUPS = [
+  { title: "Administrativní hranice", layers: [
+    { id:"kraj", q:"kraj", label:"Hranice Ústeckého kraje", sw:{line:"#1D3C8F"}, on:true,
+      style: () => ({ color:"#1D3C8F", weight:3, opacity:.9 }) }
+  ]},
   { title: "Vodní toky a nádrže", layers: [
     { id:"rivers", q:"rivers", label:"Řeky", note:"Labe a Ohře zvýrazněné", sw:{line:"#2B7BB9"},
       style: t => ({ color:"#2B7BB9", weight: /^(Labe|Ohře)$/.test(t.name||"") ? 5 : MAJOR_RIVERS.test(t.name||"") ? 3 : 1.6, opacity:.9 }) },
@@ -139,26 +144,7 @@ document.querySelectorAll(".base button").forEach(b => b.addEventListener("click
   document.querySelectorAll(".base button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
 }));
 
-/* Rastrové služby (WMS/ArcGIS) se ořezávají CSS clip-path podle polygonu hranice kraje.
-   Do načtení hranice je pane skrytý, aby se nic neukázalo mimo kraj. */
-const wmsPane = map.createPane("wms");
-wmsPane.style.zIndex = 350;
-wmsPane.style.visibility = "hidden";
-let clipRings = null;
-function clipPath(toPt) {
-  return 'path(evenodd, "' + clipRings.map(r => r.map((ll, i) => {
-    const p = toPt(ll); return (i ? "L" : "M") + p.x.toFixed(1) + " " + p.y.toFixed(1);
-  }).join("") + "Z").join("") + '")';
-}
-function updateClip(e) {
-  if (!clipRings) return;
-  const toPt = e && e.zoom != null
-    ? ll => map._latLngToNewLayerPoint(L.latLng(ll), e.zoom, e.center)
-    : ll => map.latLngToLayerPoint(ll);
-  wmsPane.style.clipPath = clipPath(toPt);
-}
-map.on("zoomanim", updateClip);
-map.on("zoomend viewreset resize", () => updateClip());
+map.createPane("wms").style.zIndex = 350;
 map.createPane("areas").style.zIndex = 380;
 map.createPane("mask").style.zIndex = 390;
 map.getPane("mask").style.pointerEvents = "none";
@@ -169,7 +155,7 @@ const Home = L.Control.extend({ options:{ position:"topleft" }, onAdd() {
   L.DomEvent.on(d, "click", e => { L.DomEvent.preventDefault(e); map.fitBounds(krajBounds || KRAJ_BOUNDS); });
   return d; } });
 new Home().addTo(map);
-let krajBounds = null;
+let krajBounds = null, krajFitted = false;
 
 /* ================= Overpass ================= */
 /* fronta se 2 souběžnými dotazy (overpass-api.de dává 2 sloty na IP) */
@@ -219,12 +205,10 @@ function loadQuery(key, onQueued) {
   const def = Q[key];
   const out = def.geom === "point" ? "out tags center;" : "out geom;";
   const p = (async () => {
-    const ck = "kmuk3:" + key;
+    const ck = "kmuk4:" + key;
     try { const c = sessionStorage.getItem(ck); if (c) return JSON.parse(c); } catch (e) {}
     const json = await enqueue(() => { onQueued && onQueued(); return overpass(`[out:json][timeout:110];${AREA}(${def.body});${out}`); });
-    let feats = buildFeatures(json.elements || [], def.geom);
-    const K = await krajReady;
-    if (K) feats = clipFeatures(feats, K, def.geom);
+    const feats = buildFeatures(json.elements || [], def.geom);
     /* prázdný výsledek necachujeme – může jít o výpadek */
     if (feats.length) try { sessionStorage.setItem(ck, JSON.stringify(feats)); } catch (e) {}
     return feats;
@@ -270,6 +254,11 @@ function buildFeatures(els, kind) {
     if (kind === "point") {
       const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
       if (lat != null) out.push({ t, id, ll:[lat, lon] });
+    } else if (kind === "boundary") {
+      if (el.type === "relation" && el.members) {
+        const rings = joinRings(el.members.filter(m => m.type === "way" && m.role !== "inner" && m.geometry).map(m => geomLL(m.geometry)));
+        if (rings.length) out.push({ t, id, lines:rings });
+      }
     } else if (kind === "line") {
       if (el.type === "way" && el.geometry) out.push({ t, id, lines:[geomLL(el.geometry)] });
     } else {
@@ -284,67 +273,6 @@ function buildFeatures(els, kind) {
         const ha = outer.reduce((s, r) => s + ringHa(r), 0) - inner.reduce((s, r) => s + ringHa(r), 0);
         out.push({ t, id, rings:[...outer, ...inner], outer, inner, ha });
       }
-    }
-  }
-  return out;
-}
-
-/* ================= ořez na území kraje ================= */
-const ll2c = r => r.map(p => [p[1], p[0]]);
-const c2ll = r => r.map(p => [p[1], p[0]]);
-const closeRing = r => same(r[0], r[r.length - 1]) ? r : r.concat([r[0]]);
-
-/* rychlý test "bod v kraji" přes rastrovou masku (~25 m/px), přesné výpočty dělá turf jen na hranici */
-function buildRaster(rings) {
-  let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
-  for (const r of rings) for (const [la, lo] of r) { minLat = Math.min(minLat, la); maxLat = Math.max(maxLat, la); minLon = Math.min(minLon, lo); maxLon = Math.max(maxLon, lo); }
-  const W = 4000, H = Math.round(W * (maxLat - minLat) / ((maxLon - minLon) * Math.cos((minLat + maxLat) / 2 * Math.PI / 180)));
-  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-  const ctx = cv.getContext("2d", { willReadFrequently:true });
-  const X = lo => (lo - minLon) / (maxLon - minLon) * W, Y = la => (maxLat - la) / (maxLat - minLat) * H;
-  ctx.beginPath();
-  for (const r of rings) { ctx.moveTo(X(r[0][1]), Y(r[0][0])); for (const p of r) ctx.lineTo(X(p[1]), Y(p[0])); ctx.closePath(); }
-  ctx.fill("evenodd");
-  const a = ctx.getImageData(0, 0, W, H).data;
-  return (la, lo) => { const x = Math.floor(X(lo)), y = Math.floor(Y(la));
-    return x >= 0 && y >= 0 && x < W && y < H && a[(y * W + x) * 4 + 3] > 127; };
-}
-function clipFeatures(feats, K, kind) {
-  const out = [];
-  for (const f of feats) {
-    try {
-      if (kind === "point") { if (K.inside(f.ll[0], f.ll[1])) out.push(f); continue; }
-      if (kind === "line") {
-        const pieces = [];
-        for (const ln of f.lines) {
-          const flags = ln.map(p => K.inside(p[0], p[1]));
-          if (flags.every(Boolean)) { pieces.push(ln); continue; }
-          if (!flags.some(Boolean)) continue;
-          const ls = turf.lineString(ll2c(ln));
-          const parts = turf.lineSplit(ls, K.line).features;
-          for (const part of (parts.length ? parts : [ls])) {
-            const mid = turf.along(part, turf.length(part) / 2);
-            if (turf.booleanPointInPolygon(mid, K.poly)) pieces.push(c2ll(part.geometry.coordinates));
-          }
-        }
-        if (pieces.length) out.push({ ...f, lines:pieces });
-        continue;
-      }
-      /* plochy */
-      const all = f.rings.flat();
-      const ins = all.map(p => K.inside(p[0], p[1]));
-      if (ins.every(Boolean)) { out.push(f); continue; }
-      if (!ins.some(Boolean) && !f.outer.some(r => turf.booleanPointInPolygon(turf.point(ll2c([K.center])[0]), turf.polygon([ll2c(closeRing(r))])))) continue;
-      let g = turf.multiPolygon(f.outer.map(r => [ll2c(closeRing(r))]));
-      for (const r of f.inner) { if (!g) break; g = turf.difference(g, turf.polygon([ll2c(closeRing(r))])); }
-      const x = g && turf.intersect(g, K.poly);
-      if (!x) continue;
-      const polys = x.geometry.type === "Polygon" ? [x.geometry.coordinates] : x.geometry.coordinates;
-      out.push({ ...f, rings: polys.flat().map(c2ll), ha: turf.area(x) / 10000 });
-    } catch (e) {
-      /* nevalidní geometrie z OSM – ponecháme, jen pokud leží v kraji */
-      const p = f.ll || (f.lines || f.rings)[0][0];
-      if (K.inside(p[0], p[1])) out.push(f);
     }
   }
   return out;
@@ -421,6 +349,7 @@ async function toggleVector(id) {
     const feats = await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
     const { g, n } = buildLayer(s.def, feats);
     s.layer = g; s.st.className = "st"; s.st.textContent = n.toLocaleString("cs");
+    if (id === "kraj" && n) { krajBounds = L.featureGroup(g.getLayers()).getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }
     if (s.cb.checked) g.addTo(map);
   } catch (e) {
     console.error("[" + s.def.label + "]", e);
@@ -564,32 +493,8 @@ custom.querySelector("button").addEventListener("click", () => {
   wsec.appendChild(custom); custom.querySelector("input").value = "";
 });
 
-/* ================= hranice kraje + maska ================= */
-const krajReady = (async () => {
-  try {
-    const json = await enqueue(() => overpass('[out:json][timeout:110];relation["ISO3166-2"="CZ-42"]["admin_level"="6"];out geom;'));
-    const rel = (json.elements || [])[0]; if (!rel) { wmsPane.style.visibility = ""; return null; }
-    const rings = joinRings(rel.members.filter(m => m.type === "way" && m.role !== "inner").map(m => geomLL(m.geometry))).map(closeRing);
-    if (!rings.length) { wmsPane.style.visibility = ""; return null; }
-    const world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
-    /* okolí kraje jen jemně ztlumíme – podklad zůstává vidět, data jsou ořezaná */
-    L.polygon([world, ...rings], { stroke:false, fillColor:"#1A1F2B", fillOpacity:.18, interactive:false, renderer }).addTo(map);
-    const outline = L.polyline(rings, { color:"#1D3C8F", weight:2.5, interactive:false, renderer }).addTo(map);
-    krajBounds = outline.getBounds();
-    map.fitBounds(krajBounds);
-    /* ořez rastrů: zjednodušená hranice (~20 m), aby clip-path nebyl zbytečně dlouhý */
-    try {
-      const simp = turf.simplify(turf.multiPolygon(rings.map(r => [ll2c(r)])), { tolerance:0.0002, highQuality:false });
-      clipRings = simp.geometry.coordinates.map(poly => c2ll(poly[0]));
-    } catch (e) { clipRings = rings; }
-    updateClip();
-    wmsPane.style.visibility = "";
-    const poly = turf.multiPolygon(rings.map(r => [ll2c(r)]));
-    const c = krajBounds.getCenter();
-    return { poly, line: turf.multiLineString(rings.map(ll2c)), inside: buildRaster(rings), center:[c.lat, c.lng] };
-  } catch (e) { console.warn("Hranici kraje nelze načíst, data nebudou ořezaná:", e); wmsPane.style.visibility = ""; return null; }
-})();
-krajReady.then(() => { for (const id in state) if (state[id].cb.checked) toggleVector(id); });
+/* ================= start ================= */
+for (const id in state) if (state[id].cb.checked) toggleVector(id);
 
 /* mobil */
 const tg = document.getElementById("toggle");

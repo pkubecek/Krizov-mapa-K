@@ -24,13 +24,11 @@ function krajPoly() {
   return krajPolyPromise;
 }
 const Q = {
-  dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
-  police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" }
+  dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" }
 };
 
 /* pomocné klasifikace */
 const isHZS = t => /hasičský záchranný sbor|\bHZS\b/i.test((t.operator || "") + " " + (t.name || ""));
-const isMP = t => /městsk|obecní/i.test((t.operator || "") + " " + (t.name || "") + " " + (t["police:type"] || ""));
 
 /* symboly */
 /* piktogramy (bílé, 24×24) – kříž, štít, plamen podle běžných map */
@@ -130,7 +128,6 @@ const GROUPS = [
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
-    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("di","#5C7BD9",picto("stit",14),14) },
     { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",
@@ -223,9 +220,17 @@ else {
   BASES.osm.on("tileerror", () => { if (++bad >= 4 && ok === 0) useOsmFallback("HTTP 403 / blokováno"); });
 }
 let base = BASES.osm.addTo(map);
-document.querySelectorAll(".base button").forEach(b => b.addEventListener("click", () => {
+/* přepínač podkladu přímo v mapě (vpravo nahoře) */
+const BaseSwitch = L.Control.extend({ options:{ position:"topright" }, onAdd() {
+  const d = L.DomUtil.create("div", "leaflet-control base-switch");
+  d.setAttribute("role", "group"); d.setAttribute("aria-label", "Podkladová mapa");
+  d.innerHTML = '<button type="button" data-base="osm" aria-pressed="true">OSM</button><button type="button" data-base="orto" aria-pressed="false">Ortofoto</button>';
+  L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+  return d; } });
+new BaseSwitch().addTo(map);
+document.querySelectorAll(".base-switch button").forEach(b => b.addEventListener("click", () => {
   map.removeLayer(base); base = BASES[b.dataset.base].addTo(map); base.bringToBack();
-  document.querySelectorAll(".base button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  document.querySelectorAll(".base-switch button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
 }));
 
 map.createPane("wms").style.zIndex = 350;

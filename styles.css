@@ -23,9 +23,11 @@ body{font-family:var(--body);color:var(--ink);background:var(--paper);display:fl
 .emblem img{height:30px;width:auto;display:block}
 .head h1{font:700 21px/1.05 var(--ui);margin:0;letter-spacing:.2px}
 .head p{font:500 13px/1.2 var(--ui);margin:3px 0 0;opacity:.85}
-.base{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line)}
-.base button{flex:1;font:600 13px var(--ui);padding:6px 4px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:4px;cursor:pointer}
-.base button[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.base-switch{display:flex;background:#fff;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.35);overflow:hidden}
+.base-switch button{font:600 13px var(--ui);padding:7px 12px;border:0;background:#fff;color:#1A1F2B;cursor:pointer}
+.base-switch button+button{border-left:1px solid #D9DDE2}
+.base-switch button:hover{background:#EEF1F6}
+.base-switch button[aria-pressed="true"]{background:var(--blue);color:#fff}
 .scroll{overflow-y:auto;flex:1;padding-bottom:20px}
 .group h2{font:700 15px var(--ui);margin:0;padding:14px 16px 6px;color:var(--blue)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .group h2{color:#8FA8EA}}

@@ -85,7 +85,7 @@ const GROUPS = [
   { title: "Administrativní hranice", layers: [
     { id:"kraj", file:"kraj.geojson", kind:"line", label:"Hranice Ústeckého kraje", on:true,
       style: () => ({ color:"#1D3C8F", weight:3, opacity:.9, fill:false }),
-      popup: p => [p.nazev || "Ústecký kraj", []] }
+     }
   ]},
   { title: "Vodní toky a plochy", layers: [
     { id:"toky", file:"vodni_toky.geojson", kind:"line", label:"Vodní toky", note:"pojmenované toky, ZABAGED",
@@ -136,7 +136,6 @@ const GROUPS = [
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
-    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("di","#5C7BD9",picto("stit",14),14) },
     { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",

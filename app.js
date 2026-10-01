@@ -420,7 +420,12 @@ function pointOf(n) {
     if (Array.isArray(g.coordinates)) { const [x, y] = g.coordinates.map(num); if (isSjtsk(x, y)) return [x, y]; }
   }
   if (Array.isArray(g) && g.length >= 2) { const x = num(g[0]), y = num(g[1]); if (isSjtsk(x, y)) return [x, y]; }
-  if (typeof g === "string") { const m = g.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)/i); if (m && isSjtsk(+m[1], +m[2])) return [+m[1], +m[2]]; }
+  if (typeof g === "string") {
+    /* poi_layer posílá geom jako text "{lat: -965235.38, lon: -746849.01}" (není to platný JSON) */
+    const lo = g.match(/\blon\b\s*["']?\s*:\s*["']?(-?[\d.]+)/i), la = g.match(/\blat\b\s*["']?\s*:\s*["']?(-?[\d.]+)/i);
+    if (lo && la && isSjtsk(+lo[1], +la[1])) return [+lo[1], +la[1]];
+    const m = g.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)/i); if (m && isSjtsk(+m[1], +m[2])) return [+m[1], +m[2]];
+  }
   for (const [kx, ky] of [["lon", "lat"], ["x", "y"], ["X", "Y"]]) {
     const x = num(n[kx]), y = num(n[ky]); if (isSjtsk(x, y)) return [x, y];
   }
@@ -555,7 +560,14 @@ host.appendChild(wsec);
 const wmsState = {};
 
 /* GetCapabilities / ArcGIS JSON: nejdřív přímo, při CORS nebo chybě přes serverless proxy na Vercelu */
+/* servery, o kterých víme, že CORS neposílají – rovnou přes proxy, bez zbytečné chyby v konzoli */
+const NO_CORS_HOSTS = new Set(["pkr.kr-ustecky.cz"]);
 async function fetchCors(url) {
+  if (/^https?:$/.test(location.protocol) && NO_CORS_HOSTS.has(new URL(url).hostname)) {
+    const r = await fetch("/api/proxy?url=" + encodeURIComponent(url));
+    if (!r.ok) throw new Error("proxy HTTP " + r.status);
+    return r;
+  }
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error("HTTP " + r.status);

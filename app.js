@@ -17,7 +17,7 @@ function krajPoly() {
   krajPolyPromise ||= fetch("/data/kraj.geojson").then(r => r.ok ? r.json() : null).then(fc => {
     const g = fc?.features?.[0]?.geometry; if (!g) return null;
     const ring = g.type === "Polygon" ? g.coordinates[0] : g.coordinates.reduce((a, p) => p[0].length > a.length ? p[0] : a, []);
-    const step = Math.max(1, Math.ceil(ring.length / 300));          /* ~300 vrcholů stačí, přesnost ~stovky m */
+    const step = Math.max(1, Math.ceil(ring.length / 200));          /* ~300 vrcholů stačí, přesnost ~stovky m */
     const pts = ring.filter((_, i) => i % step === 0);
     return pts.map(([lon, lat]) => lat.toFixed(5) + " " + lon.toFixed(5)).join(" ");
   }).catch(() => null);
@@ -622,9 +622,9 @@ function buildFileLayer(def, fc) {
   for (let i = 0; i < passes; i++) {
     const last = i === passes - 1;
     const lyr = L.geoJSON(fcFilt, {
-      renderer, interactive: last,
+      renderer, interactive: last && !!def.popup,
       style: f => { const st = arr(def.style(f.properties || {}))[i]; return st ? { ...st, fill: def.kind === "area" && st.fill !== false } : { stroke:false, fill:false }; },
-      onEachFeature: last ? (f, l) => l.bindPopup(() => filePopup(def, f.properties || {})) : undefined
+            onEachFeature: last && def.popup ? (f, l) => l.bindPopup(() => filePopup(def, f.properties || {})) : undefined
     });
     g.addLayer(lyr);
   }

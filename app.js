@@ -95,14 +95,14 @@ const GROUPS = [
   { title: "Doprava", layers: [
     { id:"silnice", file:"silnice.geojson", kind:"line", label:"Dálnice a silnice I. třídy", on:true,
       style: silniceStyle,
-      legend: [ { label:"dálnice", t:{ trida:"D1" } }, { label:"dálnice II. třídy", t:{ trida:"D2" } },
+      legend: [ { label:"dálnice", t:{ trida:"D1" } }, { label:"Silnice pro motorová vozidla ", t:{ trida:"D2" } },
                 { label:"silnice I. třídy", t:{ trida:"I" } }, { label:"větve a nájezdy dálnic", t:{ trida:"D1", vetev:1 } },
                 { label:"větve silnic I. třídy", t:{ trida:"I", vetev:1 } } ],
       popup: p => [p.cislo || "Silnice", rows(["Kategorie", ({ D1:"dálnice", D2:"dálnice II. třídy", I:"silnice I. třídy" }[p.trida] || "") + (p.vetev ? " – větev" : "")])] },
     { id:"zeleznice", file:"zeleznice.geojson", kind:"line", label:"Železniční tratě",
       style: zelezniceStyle,
       legend: [ { label:"elektrizovaná", t:{ elektr:1 } }, { label:"neelektrizovaná", t:{ elektr:0 } } ],
-      popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrizovaná" : "neelektrizovaná"])] }
+      popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrifikovaná" : "neelektrifikovaná"])] }
   ]},
   { title: "Kritická infrastruktura", layers: [
     { id:"elek", file:"elektrarny.geojson", label:"Elektrárny nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
@@ -115,10 +115,10 @@ const GROUPS = [
       style: p => p.kv >= 400 ? { color:"#7F1414", weight:3.4 } : p.kv >= 220 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 },
       legend: [ { label:"400 kV", t:{ kv:400 } }, { label:"220 kV", t:{ kv:220 } }, { label:"110 kV", t:{ kv:110 } } ],
       popup: p => ["Elektrické vedení", rows(["Napětí", p.napeti])] },
-    { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"OSM", icon: mkHtml("ci","#00838F","V",16),
+    { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"ZABAGED", icon: mkHtml("ci","#00838F","V",16),
       popup: p => [p.name || (p.man_made === "wastewater_plant" ? "Čistírna odpadních vod" : "Úpravna vody"),
         rows(["Typ", p.man_made === "wastewater_plant" ? "čistírna odpadních vod" : "úpravna vody"], ["Provozovatel", p.operator])] },
-    { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20),
+    { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", note:"ZABAGED", icon: mkHtml("tri","#AD1457","!",20),
       popup: p => [p.nazev || "Chemický podnik", rows(["Lokalita", p.lokalita], ["Výroba", p.popis])] }
   ]},
   { title: "Složky IZS", layers: [

@@ -8,6 +8,8 @@ Statická webová mapa (Leaflet) se serverless proxy pro metadata mapových slu�
 index.html      stránka
 styles.css      vzhled
 app.js          logika mapy (vrstvy, Overpass, WMS/ArcGIS, ořez na kraj)
+data/           statická data ZABAGED (GeoJSON, WGS84) – hranice kraje, vodstvo, doprava, IZS
+scripts/        prepare_data.py – převod exportů ZABAGED do data/ (zjednodušení, ořez atributů)
 api/proxy.js    Vercel funkce – obchází chybějící CORS u GetCapabilities / ArcGIS ?f=json
 vercel.json     konfigurace (hlavičky, limit funkce)
 ```
@@ -45,3 +47,16 @@ Bez Vercel CLI stačí `python -m http.server`, jen nepoběží proxy
 - Svahové nestability, poddolovaná území: ČGS (ArcGIS REST)
 
 Proxy povoluje jen hosty v `ALLOWED_HOSTS` v `api/proxy.js` – při přidání nové služby je potřeba ji tam doplnit.
+
+## Aktualizace dat ZABAGED
+
+Exporty (GeoJSON ve WGS84) dej do jedné složky a spusť:
+
+```bash
+pip install shapely
+python scripts/prepare_data.py cesta/ke/zdrojum
+```
+
+Skript najde soubory podle názvu (UsteckyKraj, VodniTok, VodniPlocha, ZeleznicniTrat, SilniceDalnice,
+Elektrarna, Hasicska, Nemocnice, Policejni, Heliport), zjednoduší geometrii (~3–4 m), sloučí úseky toků,
+silnic a tratí a přepíše soubory v `data/`.

@@ -19,8 +19,8 @@ body{font-family:var(--body);color:var(--ink);background:var(--paper);display:fl
 /* ---------- panel ---------- */
 #panel{width:340px;flex:none;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:1000}
 .head{display:flex;gap:12px;align-items:center;padding:14px 16px;background:var(--orange);color:#1A1F2B}
-.emblem{width:38px;height:38px;flex:none;background:var(--orange);border:2px solid #1A1F2B;display:grid;place-items:center}
-.emblem svg{width:30px;height:30px}
+.emblem{flex:none;background:#fff;border-radius:6px;padding:6px 8px;display:grid;place-items:center;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.emblem img{height:30px;width:auto;display:block}
 .head h1{font:700 21px/1.05 var(--ui);margin:0;letter-spacing:.2px}
 .head p{font:500 13px/1.2 var(--ui);margin:3px 0 0;opacity:.85}
 .base{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line)}

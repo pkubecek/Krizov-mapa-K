@@ -11,10 +11,6 @@ const OVERPASS = [
 const MAJOR_RIVERS = /^(Labe|Ohře|Bílina|Ploučnice|Kamenice|Chomutovka|Mandava|Křinice|Liboc|Blšanka)$/;
 
 const Q = {
-  kraj:    { body:'relation["ISO3166-2"="CZ-42"]["admin_level"="6"];', geom:"boundary" },
-  rivers:  { body:'way["waterway"="river"](area.k);', geom:"line" },
-  canals:  { body:'way["waterway"="canal"](area.k);', geom:"line" },
-  res:     { body:'way["water"="reservoir"](area.k);relation["water"="reservoir"](area.k);way["landuse"="reservoir"](area.k);relation["landuse"="reservoir"](area.k);', geom:"area" },
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
   prot:    { body:'relation["boundary"~"^(protected_area|national_park)$"]["protect_class"!~"^9"](area.k);way["boundary"="protected_area"]["protect_class"!~"^9"](area.k);relation["leisure"="nature_reserve"](area.k);way["leisure"="nature_reserve"](area.k);', geom:"area" },
   plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
@@ -23,9 +19,7 @@ const Q = {
   vn:      { body:'way["power"~"^(line|minor_line)$"]["voltage"~"^(6000|10000|22000|35000)(;|$)"](area.k);', geom:"line" },
   water:   { body:'nwr["man_made"~"^(water_works|wastewater_plant)$"](area.k);', geom:"point" },
   chem:    { body:'nwr["industrial"~"^(chemical|refinery)$"](area.k);', geom:"point" },
-  fire:    { body:'nwr["amenity"="fire_station"](area.k);', geom:"point" },
   police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" },
-  hosp:    { body:'nwr["amenity"="hospital"](area.k);', geom:"point" },
   zzs:     { body:'nwr["emergency"="ambulance_station"](area.k);', geom:"point" }
 };
 
@@ -54,50 +48,108 @@ const mkHtml = (shape, c, glyph = "", s = 20, fg = "#fff") =>
   `<span class="mk ${shape}" style="--c:${c};--s:${s}px;--fg:${fg}">${shape === "di" ? `<span>${glyph}</span>` : glyph}</span>`;
 
 /* ================= definice vrstev ================= */
+/* ---- symbologie vrstev ZABAGED (statická data v /data) ---- */
+const RIVER_MAIN = /^(Labe|Ohře)$/;
+const tokStyle = p => RIVER_MAIN.test(p.jmeno || "") ? { color:"#1F6FB2", weight:4.5 }
+  : p.trida === "splavny" ? { color:"#1F6FB2", weight:3.2 }
+  : p.trida === "obcasny" ? { color:"#4A95CE", weight:1.3, dashArray:"4 3" }
+  : { color:"#2B7BB9", weight:1.8 };
+const PLOCHY = {
+  "přehradní nádrž":    { color:"#144E80", weight:1, fillColor:"#1F6FB2", fillOpacity:.65 },
+  "rybník":             { color:"#2B7BB9", weight:.8, fillColor:"#5AA7DA", fillOpacity:.55 },
+  "antropogenní jezero":{ color:"#1E7A74", weight:.8, fillColor:"#3FA7A0", fillOpacity:.55 },
+  "sedimentační nádrž": { color:"#6E5530", weight:1, fillColor:"#A88B5A", fillOpacity:.6 },
+  _ostatni:             { color:"#5AA7DA", weight:.6, fillColor:"#8EC5E8", fillOpacity:.5 }
+};
+const plochaStyle = p => PLOCHY[p.typ] || PLOCHY._ostatni;
+/* silnice a železnice mají dvě vrstvy čáry (lem + výplň) – style() vrací pole */
+const silniceStyle = p => {
+  if (p.vetev) return p.trida === "I" ? [{ color:"#B7791F", weight:1.8 }] : [{ color:"#D84315", weight:2.2 }];
+  if (p.trida === "D1") return [{ color:"#7F1414", weight:6.5 }, { color:"#E53935", weight:4 }];
+  if (p.trida === "D2") return [{ color:"#7F1414", weight:5.5 }, { color:"#F06A3A", weight:3.2 }];
+  return [{ color:"#8A5A00", weight:4.4 }, { color:"#F9C23C", weight:2.6 }];
+};
+const zelezniceStyle = p => p.elektr
+  ? [{ color:"#1A1F2B", weight:4.2, lineCap:"butt" }, { color:"#FFFFFF", weight:2, dashArray:"7 7", lineCap:"butt" }]
+  : [{ color:"#4B5563", weight:3.2, lineCap:"butt" }, { color:"#FFFFFF", weight:1.4, dashArray:"7 7", lineCap:"butt" }];
+const rows = (...pairs) => pairs.filter(([, v]) => v !== undefined && v !== null && v !== "");
+
 const GROUPS = [
   { title: "Administrativní hranice", layers: [
-    { id:"kraj", q:"kraj", label:"Hranice Ústeckého kraje", sw:{line:"#1D3C8F"}, on:true,
-      style: () => ({ color:"#1D3C8F", weight:3, opacity:.9 }) }
+    { id:"kraj", file:"kraj.geojson", kind:"line", label:"Hranice Ústeckého kraje", on:true,
+      style: () => ({ color:"#1D3C8F", weight:3, opacity:.9, fill:false }),
+      popup: p => [p.nazev || "Ústecký kraj", []] }
   ]},
-  { title: "Vodní toky a nádrže", layers: [
-    { id:"rivers", q:"rivers", label:"Řeky", sw:{line:"#2B7BB9"},
-      style: t => ({ color:"#2B7BB9", weight: /^(Labe|Ohře)$/.test(t.name||"") ? 5 : MAJOR_RIVERS.test(t.name||"") ? 3 : 1.6, opacity:.9 }),
-      legend: [ { label:"Labe, Ohře", t:{ name:"Labe" } }, { label:"Bílina, Ploučnice, Kamenice a další", t:{ name:"Bílina" } }, { label:"ostatní řeky", t:{} } ] },
-    { id:"canals", q:"canals", label:"Kanály", sw:{line:"#2B7BB9", dash:true},
-      style: () => ({ color:"#2B7BB9", weight:2.2, dashArray:"5 4" }) },
-    { id:"res", q:"res", label:"Vodní nádrže", note:"plocha nad 5 ha", sw:{area:"#5AA7DA", c:"#1F5F94"},
-      filter: (t, f) => f.ha >= 5, style: () => ({ color:"#1F5F94", weight:1.2, fillColor:"#5AA7DA", fillOpacity:.6 }) },
-    { id:"dams", q:"dams", label:"Hráze a přehrady", note:"jen pojmenované", icon: mkHtml("sq","#1F5F94","≡",16) }
+  { title: "Vodní toky a plochy", layers: [
+    { id:"toky", file:"vodni_toky.geojson", kind:"line", label:"Vodní toky", note:"pojmenované toky, ZABAGED",
+      style: tokStyle,
+      legend: [ { label:"Labe, Ohře", t:{ jmeno:"Labe" } }, { label:"ostatní splavné úseky", t:{ trida:"splavny" } },
+                { label:"stálý tok", t:{ trida:"stály" } }, { label:"občasný tok", t:{ trida:"obcasny" } } ],
+      popup: p => [p.jmeno, rows(["Typ", p.trida === "splavny" ? "povrchový splavný" : p.trida === "obcasny" ? "občasný" : "stálý"])] },
+    { id:"toky2", file:"vodni_toky_ostatni.geojson", kind:"line", label:"Ostatní vodní linie", note:"bezejmenné toky a strouhy",
+      style: p => p.trida === "obcasny" ? { color:"#7FB6DD", weight:.8, dashArray:"3 3" } : { color:"#5AA7DA", weight:.9 },
+      legend: [ { label:"stálé", t:{ trida:"stály" } }, { label:"občasné", t:{ trida:"obcasny" } } ],
+      popup: p => ["Vodní linie", rows(["Typ", p.trida === "obcasny" ? "občasná" : "stálá"])] },
+    { id:"plochy", file:"vodni_plochy.geojson", kind:"area", label:"Vodní plochy", on:false,
+      style: plochaStyle,
+      legend: [ { label:"přehradní nádrž", t:{ typ:"přehradní nádrž" } }, { label:"rybník", t:{ typ:"rybník" } },
+                { label:"antropogenní jezero (zatopené lomy)", t:{ typ:"antropogenní jezero" } },
+                { label:"sedimentační nádrž (odkaliště)", t:{ typ:"sedimentační nádrž" } }, { label:"ostatní vodní plochy", t:{} } ],
+      popup: p => [p.jmeno || p.typ || "Vodní plocha", rows(["Typ", p.typ], ["Plocha", p.ha != null ? p.ha.toLocaleString("cs") + " ha" : null])] },
+    { id:"dams", q:"dams", label:"Hráze a přehrady", note:"jen pojmenované (OSM)", icon: mkHtml("sq","#1F5F94","≡",16) }
+  ]},
+  { title: "Doprava", layers: [
+    { id:"silnice", file:"silnice.geojson", kind:"line", label:"Dálnice a silnice I. třídy", on:true,
+      style: silniceStyle,
+      legend: [ { label:"dálnice", t:{ trida:"D1" } }, { label:"dálnice II. třídy", t:{ trida:"D2" } },
+                { label:"silnice I. třídy", t:{ trida:"I" } }, { label:"větve a nájezdy dálnic", t:{ trida:"D1", vetev:1 } },
+                { label:"větve silnic I. třídy", t:{ trida:"I", vetev:1 } } ],
+      popup: p => [p.cislo || "Silnice", rows(["Kategorie", ({ D1:"dálnice", D2:"dálnice II. třídy", I:"silnice I. třídy" }[p.trida] || "") + (p.vetev ? " – větev" : "")])] },
+    { id:"zeleznice", file:"zeleznice.geojson", kind:"line", label:"Železniční tratě",
+      style: zelezniceStyle,
+      legend: [ { label:"elektrizovaná", t:{ elektr:1 } }, { label:"neelektrizovaná", t:{ elektr:0 } } ],
+      popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrizovaná" : "neelektrizovaná"])] }
   ]},
   { title: "Chráněná území", layers: [
-    { id:"np", q:"prot", label:"Národní park", filter: t => protCat(t) === "np", sw:{area:"rgba(46,125,50,.25)", c:"#1B5E20"},
+    { id:"np", q:"prot", label:"Národní park", filter: t => protCat(t) === "np",
       style: () => ({ color:"#1B5E20", weight:2.2, fillColor:"#2E7D32", fillOpacity:.18 }) },
-    { id:"chko", q:"prot", label:"CHKO", filter: t => protCat(t) === "chko", sw:{area:"rgba(124,179,66,.25)", c:"#558B2F"},
+    { id:"chko", q:"prot", label:"CHKO", filter: t => protCat(t) === "chko",
       style: () => ({ color:"#558B2F", weight:1.8, dashArray:"7 4", fillColor:"#7CB342", fillOpacity:.14 }) },
-    { id:"prp", q:"prot", label:"Přírodní parky", filter: t => protCat(t) === "prp", sw:{area:"rgba(192,202,51,.25)", c:"#9E9D24"},
+    { id:"prp", q:"prot", label:"Přírodní parky", filter: t => protCat(t) === "prp",
       style: () => ({ color:"#8C8A1E", weight:1.5, dashArray:"2 5", fillColor:"#C0CA33", fillOpacity:.12 }) },
-    { id:"rez", q:"prot", label:"Rezervace a památky", note:"NPR, PR, NPP, PP", filter: t => protCat(t) === "rez", sw:{area:"rgba(0,137,123,.4)", c:"#00695C"},
+    { id:"rez", q:"prot", label:"Rezervace a památky", note:"NPR, PR, NPP, PP", filter: t => protCat(t) === "rez",
       style: () => ({ color:"#00695C", weight:1.2, fillColor:"#00897B", fillOpacity:.38 }) }
   ]},
   { title: "Kritická infrastruktura", layers: [
-    { id:"elek", q:"plants", label:"Elektrárny", note:"bez FVE pod 5 MW", filter: isElec, icon: mkHtml("di","#F2C200","E",17,"#1A1F2B") },
-    { id:"tepl", q:"plants", label:"Teplárny a výtopny", filter: isHeat, icon: mkHtml("di","#D84315","T",17) },
+    { id:"elek", file:"elektrarny.geojson", label:"Elektrárny nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
+      popup: p => [p.jmeno || "Elektrárna", rows(["Typ", p.typ], ["Výkon", p.vykon != null ? p.vykon.toLocaleString("cs") + " MW" : null])] },
+    { id:"tepl", q:"plants", label:"Teplárny a výtopny", note:"OSM", filter: isHeat, icon: mkHtml("di","#D84315","T",17) },
     { id:"subst", q:"subst", label:"Rozvodny 110–400 kV", icon: mkHtml("sq","#6A3FA0","R",16) },
-    { id:"vvn", q:"vvn", label:"Vedení VVN a ZVN", sw:{line:"#D0312D"},
+    { id:"vvn", q:"vvn", label:"Vedení VVN a ZVN",
       style: t => { const v = vmax(t); return v >= 400000 ? { color:"#7F1414", weight:3.4 } : v >= 220000 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 }; },
       legend: [ { label:"400 kV", t:{ voltage:"400000" } }, { label:"220 kV", t:{ voltage:"220000" } }, { label:"110 kV", t:{ voltage:"110000" } } ] },
-    { id:"vn", q:"vn", label:"Vedení VN 6–35 kV", note:"větší objem dat", sw:{line:"#7A6F9B"},
+    { id:"vn", q:"vn", label:"Vedení VN 6–35 kV", note:"větší objem dat",
       style: () => ({ color:"#7A6F9B", weight:1, opacity:.75 }) },
     { id:"water", q:"water", label:"Úpravny vod a ČOV", icon: mkHtml("ci","#00838F","V",16) },
     { id:"chem", q:"chem", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20) }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", q:"fire", label:"Stanice HZS", filter: isHZS, icon: mkHtml("sq","#C62828","H",20), on:true },
-    { id:"sdh", q:"fire", label:"Hasičské zbrojnice SDH", filter: t => !isHZS(t), icon: mkHtml("ci","#E57373","",11) },
-    { id:"pcr", q:"police", label:"Policie ČR", filter: t => !isMP(t), icon: mkHtml("sq","#1D3C8F","P",20), on:true },
-    { id:"mp", q:"police", label:"Městská policie", filter: isMP, icon: mkHtml("ci","#5C7BD9","M",15) },
-    { id:"hosp", q:"hosp", label:"Nemocnice", icon: mkHtml("sq","#fff","+",20,"#C62828"), on:true },
-    { id:"zzs", q:"zzs", label:"Výjezdová stanoviště ZZS", icon: mkHtml("sq","#2E7D32","+",17) }
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", label:"Hasičské stanice", icon: mkHtml("sq","#C62828","H",20), on:true,
+      popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", label:"Hasičské zbrojnice", icon: mkHtml("ci","#E57373","",11),
+      popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
+    { id:"pcr", file:"policie.geojson", label:"Policie ČR", icon: mkHtml("sq","#1D3C8F","P",20), on:true,
+      popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
+    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("ci","#5C7BD9","M",15) },
+    { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("sq","#fff","+",20,"#C62828"), on:true,
+      popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
+    { id:"zzs", q:"zzs", label:"Výjezdová stanoviště ZZS", note:"OSM", icon: mkHtml("sq","#2E7D32","+",17) },
+    { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliporty letecké záchranné služby",
+      icon: mkHtml("ci","#2E7D32","H",20),
+      popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Noční provoz", p.nocni === "A" ? "ano" : p.nocni === "N" ? "ne" : null], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] },
+    { id:"heli", file:"heliporty.geojson", filter: p => !/HEMS/.test(p.typ || ""), label:"Ostatní heliporty",
+      icon: mkHtml("ci","#fff","H",17,"#2E7D32"),
+      popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] }
   ]}
 ];
 
@@ -349,17 +401,22 @@ const host = document.getElementById("layers");
 const icons = {};
 /* Legenda se kreslí ze stejné funkce style() jako mapa – barva, tloušťka, čárkování i průhlednost sedí 1:1.
    Výchozí hodnoty odpovídají výchozím hodnotám L.Path v Leafletu. */
-function svgSwatch(st, kind) {
+function svgShape(st, kind) {
   const color = st.color ?? "#3388ff", w = st.weight ?? 3, op = st.opacity ?? 1;
   const dash = st.dashArray ? ` stroke-dasharray="${st.dashArray}"` : "";
-  const stroke = `stroke="${color}" stroke-width="${w}" stroke-opacity="${op}" stroke-linecap="round" stroke-linejoin="round"${dash}`;
+  const cap = st.lineCap ?? "round";
+  const stroke = `stroke="${color}" stroke-width="${w}" stroke-opacity="${op}" stroke-linecap="${cap}" stroke-linejoin="round"${dash}`;
   if (kind === "area") {
-    const fill = st.fillColor ?? color, fop = st.fillOpacity ?? .2, pad = Math.max(w / 2, .5);
-    return `<svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><rect x="${pad + 1}" y="${pad + 1}" width="${26 - 2 * pad}" height="${16 - 2 * pad}" rx="1.5" fill="${fill}" fill-opacity="${fop}" ${st.stroke === false ? "" : stroke}/></svg>`;
+    const fill = st.fill === false ? "none" : (st.fillColor ?? color), fop = st.fillOpacity ?? .2, pad = Math.max(w / 2, .5);
+    return `<rect x="${pad + 1}" y="${pad + 1}" width="${26 - 2 * pad}" height="${16 - 2 * pad}" rx="1.5" fill="${fill}" fill-opacity="${fop}" ${st.stroke === false ? "" : stroke}/>`;
   }
-  return `<svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true"><line x1="${w / 2 + 1}" y1="9" x2="${27 - w / 2}" y2="9" ${stroke}/></svg>`;
+  return `<line x1="1" y1="9" x2="27" y2="9" ${stroke}/>`;
 }
-const LAYER_KIND = def => def.icon ? "point" : Q[def.q].geom === "area" ? "area" : "line";
+function svgSwatch(st, kind) {
+  const parts = (Array.isArray(st) ? st : [st]).map(s => svgShape(s, kind)).join("");
+  return `<svg class="sws" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true">${parts}</svg>`;
+}
+const LAYER_KIND = def => def.icon ? "point" : def.kind ? def.kind : Q[def.q].geom === "area" ? "area" : "line";
 function swatch(def) {
   if (def.icon) return def.icon;
   const sample = def.legend ? def.legend[def.legend.length - 1].t : {};
@@ -533,19 +590,65 @@ function buildPkrLayer(def, feats) {
   return { g, n: feats.length };
 }
 
+/* ================= statická data ZABAGED (/data/*.geojson) ================= */
+const fileCache = new Map();
+function loadFile(def) {
+  if (!fileCache.has(def.file)) {
+    const p = fetch("/data/" + def.file).then(r => { if (!r.ok) throw new Error("data/" + def.file + ": HTTP " + r.status); return r.json(); });
+    p.catch(() => fileCache.delete(def.file));
+    fileCache.set(def.file, p);
+  }
+  return fileCache.get(def.file);
+}
+function filePopup(def, p) {
+  const [title, rws] = def.popup ? def.popup(p) : [def.label, []];
+  return `<div class="pp"><h3>${esc(title || def.label)}</h3><p class="k">${esc(def.label)}</p>` +
+    (rws.length ? `<dl>${rws.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "") + `</div>`;
+}
+function buildFileLayer(def, fc) {
+  const feats = (fc.features || []).filter(f => f.geometry && (!def.filter || def.filter(f.properties || {})));
+  const g = L.layerGroup();
+  if (def.icon) {
+    icons[def.id] ||= L.divIcon({ className:"pt", html:def.icon, iconSize:[20, 20], iconAnchor:[10, 10], popupAnchor:[0, -8] });
+    for (const f of feats) {
+      const [lon, lat] = f.geometry.coordinates;
+      const p = f.properties || {};
+      g.addLayer(L.marker([lat, lon], { icon:icons[def.id], title:(def.popup ? def.popup(p)[0] : "") || def.label, keyboard:false })
+        .bindPopup(() => filePopup(def, p)));
+    }
+    return { g, n: feats.length };
+  }
+  /* čáry/plochy: styl může být pole (lem + výplň) – kreslíme po vrstvách, aby lemy byly pod všemi výplněmi */
+  const arr = s => Array.isArray(s) ? s : [s];
+  const passes = Math.max(1, ...feats.map(f => arr(def.style(f.properties || {})).length));
+  const fcFilt = { type:"FeatureCollection", features: feats };
+  for (let i = 0; i < passes; i++) {
+    const last = i === passes - 1;
+    const lyr = L.geoJSON(fcFilt, {
+      renderer, interactive: last,
+      style: f => { const st = arr(def.style(f.properties || {}))[i]; return st ? { ...st, fill: def.kind === "area" && st.fill !== false } : { stroke:false, fill:false }; },
+      onEachFeature: last ? (f, l) => l.bindPopup(() => filePopup(def, f.properties || {})) : undefined
+    });
+    g.addLayer(lyr);
+  }
+  return { g, n: feats.length };
+}
+
 async function toggleVector(id) {
   const s = state[id];
   if (!s.cb.checked) { if (s.layer) map.removeLayer(s.layer); return; }
   if (s.layer) { s.layer.addTo(map); return; }
   s.st.className = "st load"; s.st.textContent = " ve frontě";
   try {
-    const feats = s.def.pkr
-      ? (s.st.textContent = " načítám", await loadPkr(s.def))
+    const feats = s.def.pkr ? (s.st.textContent = " načítám", await loadPkr(s.def))
+      : s.def.file ? (s.st.textContent = " načítám", await loadFile(s.def))
       : await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
-    const { g, n } = s.def.pkr ? buildPkrLayer(s.def, feats) : buildLayer(s.def, feats);
+    const { g, n } = s.def.pkr ? buildPkrLayer(s.def, feats) : s.def.file ? buildFileLayer(s.def, feats) : buildLayer(s.def, feats);
     if (s.def.pkr && !n && feats.raw) s.st.title = "Portál vrátil 0 bodů. Začátek odpovědi:\n" + feats.raw;
-    s.layer = g; s.st.className = "st"; s.st.textContent = n.toLocaleString("cs");
-    if (id === "kraj" && n) { krajBounds = L.featureGroup(g.getLayers()).getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }
+    s.layer = g; s.st.className = "st";
+    /* u sloučených liniových dat ZABAGED počet prvků nic neříká – nezobrazujeme ho */
+    s.st.textContent = s.def.file && s.def.kind === "line" ? "" : n.toLocaleString("cs");
+    if (id === "kraj" && n) { krajBounds = g.getLayers()[0].getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }
     if (s.cb.checked) g.addTo(map);
   } catch (e) {
     console.error("[" + s.def.label + "]", e);

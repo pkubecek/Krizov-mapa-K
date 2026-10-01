@@ -12,7 +12,6 @@ const MAJOR_RIVERS = /^(Labe|Ohře|Bílina|Ploučnice|Kamenice|Chomutovka|Mandav
 const AREA = 'area["ISO3166-2"="CZ-42"]["admin_level"="6"]->.k;';
 const Q = {
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
-  prot:    { body:'relation["boundary"~"^(protected_area|national_park)$"]["protect_class"!~"^9"](area.k);way["boundary"="protected_area"]["protect_class"!~"^9"](area.k);relation["leisure"="nature_reserve"](area.k);way["leisure"="nature_reserve"](area.k);', geom:"area" },
   plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
   subst:   { body:'nwr["power"="substation"]["voltage"~"110000|220000|400000"](area.k);', geom:"point" },
   water:   { body:'nwr["man_made"~"^(water_works|wastewater_plant)$"](area.k);', geom:"point" },
@@ -30,14 +29,6 @@ const isElec = t => {
 };
 const isHZS = t => /hasičský záchranný sbor|\bHZS\b/i.test((t.operator || "") + " " + (t.name || ""));
 const isMP = t => /městsk|obecní/i.test((t.operator || "") + " " + (t.name || "") + " " + (t["police:type"] || ""));
-function protCat(t) {
-  const s = [t.protection_title, t.name, t.designation, t["protection_title:cs"]].filter(Boolean).join(" ").toLowerCase();
-  if (/národní park|national park/.test(s) || t.boundary === "national_park" || t.protect_class === "2") return "np";
-  if (/chráněná krajinná|\bchko\b/.test(s)) return "chko";
-  if (/přírodní park/.test(s)) return "prp";
-  if (/rezervace|památka|reserve/.test(s) || t.leisure === "nature_reserve" || /^(1a|1b|1|3|4)$/.test(t.protect_class || "")) return "rez";
-  return null;
-}
 
 /* symboly */
 /* piktogramy (bílé, 24×24) – kříž, štít, plamen podle běžných map */
@@ -112,16 +103,6 @@ const GROUPS = [
       style: zelezniceStyle,
       legend: [ { label:"elektrizovaná", t:{ elektr:1 } }, { label:"neelektrizovaná", t:{ elektr:0 } } ],
       popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrizovaná" : "neelektrizovaná"])] }
-  ]},
-  { title: "Chráněná území", layers: [
-    { id:"np", q:"prot", label:"Národní park", filter: t => protCat(t) === "np",
-      style: () => ({ color:"#1B5E20", weight:2.2, fillColor:"#2E7D32", fillOpacity:.18 }) },
-    { id:"chko", q:"prot", label:"CHKO", filter: t => protCat(t) === "chko",
-      style: () => ({ color:"#558B2F", weight:1.8, dashArray:"7 4", fillColor:"#7CB342", fillOpacity:.14 }) },
-    { id:"prp", q:"prot", label:"Přírodní parky", filter: t => protCat(t) === "prp",
-      style: () => ({ color:"#8C8A1E", weight:1.5, dashArray:"2 5", fillColor:"#C0CA33", fillOpacity:.12 }) },
-    { id:"rez", q:"prot", label:"Rezervace a památky", note:"NPR, PR, NPP, PP", filter: t => protCat(t) === "rez",
-      style: () => ({ color:"#00695C", weight:1.2, fillColor:"#00897B", fillOpacity:.38 }) }
   ]},
   { title: "Kritická infrastruktura", layers: [
     { id:"elek", file:"elektrarny.geojson", label:"Elektrárny nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
@@ -203,6 +184,8 @@ for (const g of PKR_GROUPS) {
   for (const d of g.layers) { d.pkr = true; d.icon = pkrIconHtml(d.ico); }
   GROUPS.push(g);
 }
+/* vodní toky a plochy až na konec – v panelu těsně nad rastrovými službami (WMS) */
+GROUPS.push(...GROUPS.splice(GROUPS.findIndex(g => g.title === "Vodní toky a plochy"), 1));
 
 /* ================= mapa ================= */
 const map = L.map("map", { preferCanvas:true, zoomControl:true }).fitBounds(KRAJ_BOUNDS);
@@ -268,11 +251,12 @@ function pump() {
 const dataCache = new Map();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function overpass(query) {
+async function overpass(query, onProgress = () => {}) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     for (const ep of OVERPASS) {
-      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 120000);
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 90000);
+      onProgress(`Dotaz na ${new URL(ep).host}${attempt ? " (2. pokus)" : ""}…` + (lastErr ? `\nPředchozí chyba: ${lastErr.message}` : ""));
       try {
         const r = await fetch(ep, { method:"POST", body:"data=" + encodeURIComponent(query),
           headers:{ "Content-Type":"application/x-www-form-urlencoded" }, signal:ctl.signal });
@@ -290,7 +274,7 @@ async function overpass(query) {
         console.warn("[Overpass]", lastErr.message);
       } finally { clearTimeout(tm); }
     }
-    await sleep(4000);
+    if (attempt === 0) { onProgress(`Všechny servery Overpass selhaly, zkusím znovu za 4 s.\nPoslední chyba: ${lastErr?.message}`); await sleep(4000); }
   }
   throw lastErr || new Error("Overpass nedostupný");
 }
@@ -299,7 +283,9 @@ function loadQuery(key, onQueued) {
   const def = Q[key];
   const out = def.geom === "point" ? "out tags center;" : "out geom;";
   const p = (async () => {
-    const json = await enqueue(() => { onQueued && onQueued(); return overpass(`[out:json][timeout:110];${AREA}(${def.body});${out}`); });
+    /* průběh dotazu ukazujeme v tooltipu všech vrstev, které na tento dotaz čekají */
+    const progress = msg => { for (const s of Object.values(state)) if (s.def.q === key && s.st.classList.contains("load")) { s.st.title = msg; s.st.textContent = " načítám"; } };
+    const json = await enqueue(() => { onQueued && onQueued(); return overpass(`[out:json][timeout:80];${AREA}(${def.body});${out}`, progress); });
     return buildFeatures(json.elements || [], def.geom);
   })();
   p.catch(() => dataCache.delete(key));
@@ -707,6 +693,7 @@ async function toggleVector(id) {
     if (s.def.pkrSrc) s.st.title = feats.info;
     if (s.def.pkr && !n && feats.raw) s.st.title = "Portál vrátil 0 bodů. Začátek odpovědi:\n" + feats.raw;
     s.layer = g; s.st.className = "st";
+    if (s.def.q) s.st.title = "Načteno živě z OpenStreetMap (Overpass API)";
     /* u sloučených liniových dat ZABAGED počet prvků nic neříká – nezobrazujeme ho */
     s.st.textContent = s.def.file && s.def.kind === "line" ? "" : n.toLocaleString("cs");
     if (id === "kraj" && n) { krajBounds = g.getLayers()[0].getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }

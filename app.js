@@ -408,15 +408,46 @@ const sjtsk2ll = (x, y) => { const [lon, lat] = proj4("EPSG:5514", "EPSG:4326", 
 
 /* Odpověď API má různé obaly (bulk dlaždice, result_items/ret, markers) – projdeme ji celou
    a sebereme každý objekt, který má souřadnice v geom. */
-function collectPois(node, out, seen) {
-  if (Array.isArray(node)) { for (const n of node) collectPois(n, out, seen); return; }
-  if (!node || typeof node !== "object") return;
-  if (node.geom && node.geom.lon != null && node.geom.lat != null) {
-    const key = node.uuid || node.id + "@" + node.url_prefix;
-    if (!seen.has(key)) { seen.add(key); out.push(node); }
+/* vytáhne souřadnice S-JTSK z různých zápisů, které SyPOS používá */
+const num = v => (v === null || v === undefined || v === "") ? NaN : parseFloat(v);
+const isSjtsk = (x, y) => x < -400000 && x > -950000 && y < -900000 && y > -1300000;
+function pointOf(n) {
+  const g = n.geom ?? n.geometry ?? n.g;
+  if (g && typeof g === "object" && !Array.isArray(g)) {
+    for (const [kx, ky] of [["lon", "lat"], ["x", "y"], ["X", "Y"]]) {
+      const x = num(g[kx]), y = num(g[ky]); if (isSjtsk(x, y)) return [x, y];
+    }
+    if (Array.isArray(g.coordinates)) { const [x, y] = g.coordinates.map(num); if (isSjtsk(x, y)) return [x, y]; }
+  }
+  if (Array.isArray(g) && g.length >= 2) { const x = num(g[0]), y = num(g[1]); if (isSjtsk(x, y)) return [x, y]; }
+  if (typeof g === "string") { const m = g.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)/i); if (m && isSjtsk(+m[1], +m[2])) return [+m[1], +m[2]]; }
+  for (const [kx, ky] of [["lon", "lat"], ["x", "y"], ["X", "Y"]]) {
+    const x = num(n[kx]), y = num(n[ky]); if (isSjtsk(x, y)) return [x, y];
+  }
+  return null;
+}
+/* Odpověď API má různé obaly (bulk dlaždice, result_items/ret, markers, případně JSON uložený jako text) –
+   projdeme ji celou a sebereme každý objekt se souřadnicemi v S-JTSK. */
+function collectPois(node, out, seen, depth = 0) {
+  if (depth > 12 || node == null) return;
+  if (typeof node === "string") {
+    const s = node.trim();
+    if ((s[0] === "{" || s[0] === "[") && s.length > 20) { try { collectPois(JSON.parse(s), out, seen, depth + 1); } catch (e) {} }
+    else if (s.includes('class="cdata"') || s.includes("class='cdata'")) {
+      const doc = new DOMParser().parseFromString(s, "text/html");
+      doc.querySelectorAll(".cdata").forEach(c => { try { collectPois(JSON.parse(c.textContent), out, seen, depth + 1); } catch (e) {} });
+    }
     return;
   }
-  for (const k in node) if (node[k] && typeof node[k] === "object") collectPois(node[k], out, seen);
+  if (Array.isArray(node)) { for (const n of node) collectPois(n, out, seen, depth + 1); return; }
+  if (typeof node !== "object") return;
+  const pt = pointOf(node);
+  if (pt) {
+    const key = node.uuid || (node.id ?? node.pk ?? pt.join(",")) + "@" + (node.url_prefix || "");
+    if (!seen.has(key)) { seen.add(key); out.push({ ...node, _xy: pt }); }
+    return;
+  }
+  for (const k in node) collectPois(node[k], out, seen, depth + 1);
 }
 const pkrCache = new Map();
 function loadPkr(def) {
@@ -428,10 +459,14 @@ function loadPkr(def) {
     let json;
     try { json = JSON.parse(txt); } catch (e) { throw new Error("Portál nevrátil JSON (" + txt.slice(0, 60).replace(/\s+/g, " ") + "…)"); }
     const items = []; collectPois(json, items, new Set());
-    return items.map(it => {
-      const x = parseFloat(it.geom.lon), y = parseFloat(it.geom.lat);
-      return { it, ll: sjtsk2ll(x, y) };
-    }).filter(f => isFinite(f.ll[0]) && isFinite(f.ll[1]));
+    const feats = items.map(it => ({ it, ll: sjtsk2ll(it._xy[0], it._xy[1]) })).filter(f => isFinite(f.ll[0]) && isFinite(f.ll[1]));
+    if (!feats.length) {
+      /* pro ladění: začátek odpovědi do konzole a do tooltipu vrstvy */
+      console.warn("[PKR " + def.label + "] 0 prvků, URL:", url, "\nodpověď:", txt.slice(0, 2000));
+      (window.__pkrRaw ||= {})[def.id] = txt;
+      feats.raw = txt.slice(0, 400);
+    }
+    return feats;
   })();
   p.catch(() => pkrCache.delete(def.id));
   pkrCache.set(def.id, p);
@@ -503,6 +538,7 @@ async function toggleVector(id) {
       ? (s.st.textContent = " načítám", await loadPkr(s.def))
       : await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
     const { g, n } = s.def.pkr ? buildPkrLayer(s.def, feats) : buildLayer(s.def, feats);
+    if (s.def.pkr && !n && feats.raw) s.st.title = "Portál vrátil 0 bodů. Začátek odpovědi:\n" + feats.raw;
     s.layer = g; s.st.className = "st"; s.st.textContent = n.toLocaleString("cs");
     if (id === "kraj" && n) { krajBounds = L.featureGroup(g.getLayers()).getBounds(); if (!krajFitted) { krajFitted = true; map.fitBounds(krajBounds); } }
     if (s.cb.checked) g.addTo(map);

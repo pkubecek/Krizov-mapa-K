@@ -9,7 +9,20 @@ const OVERPASS = [
 ];
 const MAJOR_RIVERS = /^(Labe|Ohře|Bílina|Ploučnice|Kamenice|Chomutovka|Mandava|Křinice|Liboc|Blšanka)$/;
 
-const AREA = 'area["ISO3166-2"="CZ-42"]["admin_level"="6"]->.k;';
+/* Oblast dotazu: polygon hranice kraje ze ZABAGED (data/kraj.geojson) → filtr poly:"…".
+   Nezávisí na tom, jak je kraj otagovaný v OSM. Záloha, kdyby soubor chyběl: oblast podle jména/ISO kódu. */
+const AREA_FALLBACK = '(area["name"="Ústecký kraj"]["boundary"="administrative"];area["ISO3166-2"="CZ-42"]["boundary"="administrative"];)->.k;';
+let krajPolyPromise = null;
+function krajPoly() {
+  krajPolyPromise ||= fetch("/data/kraj.geojson").then(r => r.ok ? r.json() : null).then(fc => {
+    const g = fc?.features?.[0]?.geometry; if (!g) return null;
+    const ring = g.type === "Polygon" ? g.coordinates[0] : g.coordinates.reduce((a, p) => p[0].length > a.length ? p[0] : a, []);
+    const step = Math.max(1, Math.ceil(ring.length / 300));          /* ~300 vrcholů stačí, přesnost ~stovky m */
+    const pts = ring.filter((_, i) => i % step === 0);
+    return pts.map(([lon, lat]) => lat.toFixed(5) + " " + lon.toFixed(5)).join(" ");
+  }).catch(() => null);
+  return krajPolyPromise;
+}
 const Q = {
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
   plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
@@ -285,7 +298,10 @@ function loadQuery(key, onQueued) {
   const p = (async () => {
     /* průběh dotazu ukazujeme v tooltipu všech vrstev, které na tento dotaz čekají */
     const progress = msg => { for (const s of Object.values(state)) if (s.def.q === key && s.st.classList.contains("load")) { s.st.title = msg; s.st.textContent = " načítám"; } };
-    const json = await enqueue(() => { onQueued && onQueued(); return overpass(`[out:json][timeout:80];${AREA}(${def.body});${out}`, progress); });
+    const poly = await krajPoly();
+    const body = poly ? def.body.replaceAll("(area.k)", `(poly:"${poly}")`) : def.body;
+    const query = `[out:json][timeout:80];${poly ? "" : AREA_FALLBACK}(${body});${out}`;
+    const json = await enqueue(() => { onQueued && onQueued(); return overpass(query, progress); });
     return buildFeatures(json.elements || [], def.geom);
   })();
   p.catch(() => dataCache.delete(key));

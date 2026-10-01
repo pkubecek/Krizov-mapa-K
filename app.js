@@ -27,8 +27,6 @@ const Q = {
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
   plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
   subst:   { body:'nwr["power"="substation"]["voltage"~"110000|220000|400000"](area.k);', geom:"point" },
-  water:   { body:'nwr["man_made"~"^(water_works|wastewater_plant)$"](area.k);', geom:"point" },
-  chem:    { body:'nwr["industrial"~"^(chemical|refinery)$"](area.k);', geom:"point" },
   police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" }
 };
 
@@ -85,7 +83,7 @@ const GROUPS = [
   { title: "Administrativní hranice", layers: [
     { id:"kraj", file:"kraj.geojson", kind:"line", label:"Hranice Ústeckého kraje", on:true,
       style: () => ({ color:"#1D3C8F", weight:3, opacity:.9, fill:false }),
-      }
+      popup: p => [p.nazev || "Ústecký kraj", []] }
   ]},
   { title: "Vodní toky a plochy", layers: [
     { id:"toky", file:"vodni_toky.geojson", kind:"line", label:"Vodní toky", note:"pojmenované toky, ZABAGED",
@@ -126,8 +124,11 @@ const GROUPS = [
       style: p => p.kv >= 400 ? { color:"#7F1414", weight:3.4 } : p.kv >= 220 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 },
       legend: [ { label:"400 kV", t:{ kv:400 } }, { label:"220 kV", t:{ kv:220 } }, { label:"110 kV", t:{ kv:110 } } ],
       popup: p => ["Elektrické vedení", rows(["Napětí", p.napeti])] },
-    { id:"water", q:"water", label:"Úpravny vod a ČOV", icon: mkHtml("ci","#00838F","V",16) },
-    { id:"chem", q:"chem", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20) }
+    { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"OSM", icon: mkHtml("ci","#00838F","V",16),
+      popup: p => [p.name || (p.man_made === "wastewater_plant" ? "Čistírna odpadních vod" : "Úpravna vody"),
+        rows(["Typ", p.man_made === "wastewater_plant" ? "čistírna odpadních vod" : "úpravna vody"], ["Provozovatel", p.operator])] },
+    { id:"chem", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/situace/udalost/", sub:"12" }, label:"Chemický a petrochemický průmysl",
+      note:"zóny havarijního plánování, PKR ÚK", icon: mkHtml("tri","#AD1457","!",20) }
   ]},
   { title: "Složky IZS", layers: [
     { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
@@ -136,6 +137,7 @@ const GROUPS = [
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
+    { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("di","#5C7BD9",picto("stit",14),14) },
     { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",
@@ -179,7 +181,6 @@ const PKR_GROUPS = [
     { id:"pkr_pov",  path:PKR_OHR, sub:"7",         label:"Povodně", ico:"/media/icons/u/7.gif" },
     { id:"pkr_ses",  path:PKR_OHR, sub:"2,3,4,5,6", label:"Sesuvy, posuvy, odvaly, proudy", ico:"/media/icons/u/2.gif" },
     { id:"pkr_dn",   path:PKR_OHR, sub:"15",        label:"Úseky častých dopravních nehod", ico:"/media/icons/u/15.gif" },
-    { id:"pkr_zhp",  path:PKR_OHR, sub:"12",        label:"Zóny havarijního plánování", ico:"/media/icons/u/12.gif" },
     { id:"pkr_mu",   path:"/pkr/zdroje-ohrozeni/jos/resenaudalost/", label:"Řešené MU/KS", note:"aktuálně řešené události", ico:"/static/situace/img/aktualni_udalost.gif" }
   ]},
   { title: "PKR ÚK – provozovny", layers: [

@@ -17,8 +17,7 @@ const Q = {
   subst:   { body:'nwr["power"="substation"]["voltage"~"110000|220000|400000"](area.k);', geom:"point" },
   water:   { body:'nwr["man_made"~"^(water_works|wastewater_plant)$"](area.k);', geom:"point" },
   chem:    { body:'nwr["industrial"~"^(chemical|refinery)$"](area.k);', geom:"point" },
-  police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" },
-  zzs:     { body:'nwr["emergency"="ambulance_station"](area.k);', geom:"point" }
+  police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" }
 };
 
 /* pomocné klasifikace */
@@ -137,16 +136,17 @@ const GROUPS = [
     { id:"chem", q:"chem", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20) }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
       popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"pcr", file:"policie.geojson", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
+    { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
     { id:"mp", q:"police", label:"Městská policie", note:"OSM", filter: isMP, icon: mkHtml("di","#5C7BD9",picto("stit",14),14) },
     { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
-    { id:"zzs", q:"zzs", label:"Výjezdová stanoviště ZZS", note:"OSM", icon: mkHtml("sq","#2E7D32","+",17) },
+    { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",
+      icon: mkHtml("di","#2E7D32",picto("kriz",19),19), popup: () => ["Zdravotnická záchranná služba", []] },
     { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliporty letecké záchranné služby",
       icon: mkHtml("ci","#2E7D32","H",20),
       popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Noční provoz", p.nocni === "A" ? "ano" : p.nocni === "N" ? "ne" : null], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] },
@@ -189,12 +189,7 @@ const PKR_GROUPS = [
     { id:"pkr_zhp",  path:PKR_OHR, sub:"12",        label:"Zóny havarijního plánování", ico:"/media/icons/u/12.gif" },
     { id:"pkr_mu",   path:"/pkr/zdroje-ohrozeni/jos/resenaudalost/", label:"Řešené MU/KS", note:"aktuálně řešené události", ico:"/static/situace/img/aktualni_udalost.gif" }
   ]},
-  { title: "PKR ÚK – základní evidence", layers: [
-    { id:"pkr_ps",   path:PKR_PROV, sub:"14", label:"Požární stanice", ico:"/media/icons/p/14.gif" },
-    { id:"pkr_zbr",  path:PKR_PROV, sub:"21", label:"Hasičské zbrojnice", ico:"/media/icons/p/21.gif" },
-    { id:"pkr_pol",  path:PKR_PROV, sub:"17", label:"Policejní služebny", ico:"/media/icons/p/17.gif" },
-    { id:"pkr_zzs",  path:PKR_PROV, sub:"19", label:"Výjezdová stanoviště ZZS", ico:"/media/icons/p/19.gif" },
-    { id:"pkr_uszzs",path:PKR_PROV, sub:"18", label:"Územní střediska ZZS", ico:"/media/icons/p/18.gif" },
+  { title: "PKR ÚK – provozovny", layers: [
     { id:"pkr_prum", path:PKR_PROV, sub:"8",  label:"Průmyslové areály", ico:"/media/icons/p/8.gif" },
     { id:"pkr_cs",   path:PKR_PROV, sub:"6",  label:"Čerpací stanice", ico:"/media/icons/p/6.gif" }
   ]},
@@ -549,6 +544,9 @@ function cleanPkrHtml(html, base) {
   });
   return doc.body.innerHTML;
 }
+function pkrDetailUrl(def, it) {
+  return new URL(it.url_prefix && /\/\d+\/$/.test(it.url_prefix) ? it.url_prefix : (it.url_prefix || def.path) + (it.id ? it.id + "/" : ""), PKR).href;
+}
 async function pkrPopupHtml(def, it) {
   const base = PKR + (it.url_prefix || def.path);
   let html = it.popup;
@@ -560,7 +558,7 @@ async function pkrPopupHtml(def, it) {
       html = j?.result_items?.[0]?.ret?.[0]?.popup || "";
     } catch (e) { html = txt; }
   }
-  const detail = new URL(it.url_prefix && /\/\d+\/$/.test(it.url_prefix) ? it.url_prefix : (it.url_prefix || def.path) + (it.id ? it.id + "/" : ""), PKR).href;
+  const detail = pkrDetailUrl(def, it);
   return `<div class="pp pkr-pp">${html ? cleanPkrHtml(html, base) : `<h3>${esc(it.name || def.label)}</h3>`}` +
     `<p class="k">${esc(def.label)} · <a href="${esc(detail)}" target="_blank" rel="noopener">Detail v portálu</a></p></div>`;
 }
@@ -632,16 +630,81 @@ function buildFileLayer(def, fc) {
   return { g, n: feats.length };
 }
 
+/* ================= sloučené vrstvy IZS: ZABAGED + PKR ÚK ================= */
+/* Body z obou zdrojů se spárují podle vzdálenosti (do MERGE_DIST m) – spárovaný objekt se kreslí jednou,
+   v poloze ze ZABAGED a s názvem z portálu. Body jen z jednoho zdroje se kreslí také. */
+const MERGE_DIST = 300;
+const distM = (a, b) => { const kx = 111320 * Math.cos(a[0] * Math.PI / 180); return Math.hypot((a[1] - b[1]) * kx, (a[0] - b[0]) * 110540); };
+async function loadMerged(def) {
+  const pkrDef = { id: def.id + "__pkr", path: def.pkrSrc.path, sub: def.pkrSrc.sub, label: def.label };
+  const [zab, pkr] = await Promise.allSettled([
+    def.file ? loadFile(def) : Promise.resolve(null),
+    loadPkr(pkrDef)
+  ]);
+  if (zab.status === "rejected" && pkr.status === "rejected") throw zab.reason;
+  const pts = [];
+  if (zab.status === "fulfilled" && zab.value) {
+    for (const f of zab.value.features || []) {
+      if (!f.geometry || (def.filter && !def.filter(f.properties || {}))) continue;
+      const [lon, lat] = f.geometry.coordinates;
+      pts.push({ ll:[lat, lon], p: f.properties || {}, it: null });
+    }
+  }
+  const nZab = pts.length; let nPkr = 0, nPair = 0;
+  if (pkr.status === "fulfilled") {
+    for (const f of pkr.value) {
+      nPkr++;
+      let best = null, bd = MERGE_DIST;
+      for (let i = 0; i < nZab; i++) { if (pts[i].it) continue; const d = distM(pts[i].ll, f.ll); if (d < bd) { bd = d; best = pts[i]; } }
+      if (best) { best.it = f.it; nPair++; } else pts.push({ ll: f.ll, p: null, it: f.it });
+    }
+  }
+  const info = [
+    def.file ? `ZABAGED: ${zab.status === "fulfilled" ? nZab : "chyba – " + zab.reason?.message}` : null,
+    `PKR ÚK: ${pkr.status === "fulfilled" ? nPkr : "chyba – " + pkr.reason?.message}`,
+    def.file && nPair ? `spárováno: ${nPair}` : null
+  ].filter(Boolean).join("\n");
+  return { pts, info, pkrDef };
+}
+function buildMergedLayer(def, res) {
+  const g = L.layerGroup();
+  icons[def.id] ||= L.divIcon({ className:"pt", html:def.icon, iconSize:[20, 20], iconAnchor:[10, 10], popupAnchor:[0, -8] });
+  for (const pt of res.pts) {
+    const [t0, rws] = pt.p && def.popup ? def.popup(pt.p) : [null, []];
+    const title = (pt.it && pt.it.name) || t0 || def.label;
+    const m = L.marker(pt.ll, { icon: icons[def.id], title, keyboard:false });
+    if (pt.p) {
+      const link = pt.it ? ` · <a href="${esc(pkrDetailUrl(res.pkrDef, pt.it))}" target="_blank" rel="noopener">Detail v portálu</a>` : "";
+      m.bindPopup(`<div class="pp"><h3>${esc(title)}</h3><p class="k">${esc(def.label)}${link}</p>` +
+        (rws.length ? `<dl>${rws.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "") +
+        `<p class="k">Zdroj: ${pt.it ? "ZABAGED, PKR ÚK" : "ZABAGED"}</p></div>`);
+    } else {
+      /* bod jen z portálu – detail se načte z PKR */
+      m.bindPopup(`<div class="pp"><h3>${esc(title)}</h3><p class="k">Načítám detail…</p></div>`, { maxWidth: 360 });
+      let loaded = false;
+      m.on("popupopen", async () => {
+        if (loaded) return; loaded = true;
+        try { m.setPopupContent(await pkrPopupHtml(res.pkrDef, pt.it)); }
+        catch (e) { loaded = false; m.setPopupContent(`<div class="pp"><h3>${esc(title)}</h3><p class="k">Detail se nepodařilo načíst (${esc(e.message)}).</p></div>`); }
+      });
+    }
+    g.addLayer(m);
+  }
+  return { g, n: res.pts.length };
+}
+
 async function toggleVector(id) {
   const s = state[id];
   if (!s.cb.checked) { if (s.layer) map.removeLayer(s.layer); return; }
   if (s.layer) { s.layer.addTo(map); return; }
   s.st.className = "st load"; s.st.textContent = " ve frontě";
   try {
-    const feats = s.def.pkr ? (s.st.textContent = " načítám", await loadPkr(s.def))
+    const feats = s.def.pkrSrc ? (s.st.textContent = " načítám", await loadMerged(s.def))
+      : s.def.pkr ? (s.st.textContent = " načítám", await loadPkr(s.def))
       : s.def.file ? (s.st.textContent = " načítám", await loadFile(s.def))
       : await loadQuery(s.def.q, () => { if (s.st.classList.contains("load")) s.st.textContent = " načítám"; });
-    const { g, n } = s.def.pkr ? buildPkrLayer(s.def, feats) : s.def.file ? buildFileLayer(s.def, feats) : buildLayer(s.def, feats);
+    const { g, n } = s.def.pkrSrc ? buildMergedLayer(s.def, feats) : s.def.pkr ? buildPkrLayer(s.def, feats) : s.def.file ? buildFileLayer(s.def, feats) : buildLayer(s.def, feats);
+    if (s.def.pkrSrc) s.st.title = feats.info;
     if (s.def.pkr && !n && feats.raw) s.st.title = "Portál vrátil 0 bodů. Začátek odpovědi:\n" + feats.raw;
     s.layer = g; s.st.className = "st";
     /* u sloučených liniových dat ZABAGED počet prvků nic neříká – nezobrazujeme ho */

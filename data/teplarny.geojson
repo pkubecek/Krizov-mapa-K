@@ -1,0 +1,133 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Teplárna Komořany",
+    "provozovatel": "United Energy",
+    "typ": "teplárna",
+    "lokalita": "Most / Komořany"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.5415,
+     50.5431
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Teplárna Trmice",
+    "provozovatel": "ČEZ",
+    "typ": "teplárna",
+    "lokalita": "Ústí nad Labem / Trmice"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.0019,
+     50.6416
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Teplárna T200 a T700",
+    "provozovatel": "ORLEN Unipetrol",
+    "typ": "teplárna",
+    "lokalita": "Litvínov / Záluží"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.6133,
+     50.5642
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Elektrárna/Teplárna Ledvice",
+    "provozovatel": "ČEZ",
+    "typ": "elektrárna a teplárna",
+    "lokalita": "Ledvice"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.7828,
+     50.5768
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Elektrárna/Teplárna Prunéřov",
+    "provozovatel": "ČEZ",
+    "typ": "elektrárna a teplárna",
+    "lokalita": "Kadaň / Prunéřov"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.2625,
+     50.4143
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Elektrárna/Teplárna Tušimice",
+    "provozovatel": "ČEZ",
+    "typ": "elektrárna a teplárna",
+    "lokalita": "Kadaň / Tušimice"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.3276,
+     50.3887
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Mondi Štětí",
+    "provozovatel": "Mondi",
+    "typ": "průmyslový zdroj s dodávkou tepla",
+    "lokalita": "Štětí"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.3051,
+     50.4578
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Lovochemie",
+    "provozovatel": "Lovochemie",
+    "typ": "průmyslový zdroj s dodávkou tepla",
+    "lokalita": "Lovosice"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.0734,
+     50.5072
+    ]
+   }
+  }
+ ]
+}

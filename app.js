@@ -25,19 +25,10 @@ function krajPoly() {
 }
 const Q = {
   dams:    { body:'way["waterway"="dam"]["name"](area.k);node["waterway"="dam"]["name"](area.k);', geom:"point" },
-  plants:  { body:'nwr["power"="plant"](area.k);', geom:"point" },
-  subst:   { body:'nwr["power"="substation"]["voltage"~"110000|220000|400000"](area.k);', geom:"point" },
   police:  { body:'nwr["amenity"="police"](area.k);', geom:"point" }
 };
 
 /* pomocné klasifikace */
-const isHeat = t => !!(t["plant:output:hot_water"] || t["plant:output:steam"] || t["plant:output:heat"] || /tepl[áa]rn|výtopn/i.test(t.name || ""));
-const mw = s => { if (!s) return 0; const m = String(s).replace(",", ".").match(/([\d.]+)\s*(kW|MW|GW)?/i); if (!m) return 0;
-  const v = parseFloat(m[1]); const u = (m[2] || "MW").toUpperCase(); return u === "KW" ? v / 1000 : u === "GW" ? v * 1000 : v; };
-const isElec = t => {
-  if (t["plant:source"] === "solar" && mw(t["plant:output:electricity"]) < 5) return false; // malé FVE vynecháme
-  return !!t["plant:output:electricity"] || !isHeat(t);
-};
 const isHZS = t => /hasičský záchranný sbor|\bHZS\b/i.test((t.operator || "") + " " + (t.name || ""));
 const isMP = t => /městsk|obecní/i.test((t.operator || "") + " " + (t.name || "") + " " + (t["police:type"] || ""));
 
@@ -118,8 +109,10 @@ const GROUPS = [
   { title: "Kritická infrastruktura", layers: [
     { id:"elek", file:"elektrarny.geojson", label:"Elektrárny nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
       popup: p => [p.jmeno || "Elektrárna", rows(["Typ", p.typ], ["Výkon", p.vykon != null ? p.vykon.toLocaleString("cs") + " MW" : null])] },
-    { id:"tepl", q:"plants", label:"Teplárny a výtopny", note:"OSM", filter: isHeat, icon: mkHtml("di","#D84315","T",17) },
-    { id:"subst", q:"subst", label:"Rozvodny 110–400 kV", icon: mkHtml("sq","#6A3FA0","R",16) },
+    { id:"tepl", file:"teplarny.geojson", label:"Teplárny a zdroje tepla", icon: mkHtml("di","#D84315","T",17),
+      popup: p => [p.nazev || "Teplárna", rows(["Typ", p.typ], ["Provozovatel", p.provozovatel], ["Lokalita", p.lokalita])] },
+    { id:"subst", file:"rozvodny.geojson", label:"Rozvodny a transformovny", note:"ZABAGED", icon: mkHtml("sq","#6A3FA0","R",16),
+      popup: p => ["Rozvodna / transformovna", rows(["Napětí", p.napeti || "neuvedeno"], ["Plocha areálu", p.plocha_ha != null ? p.plocha_ha.toLocaleString("cs") + " ha" : null], ["ID ZABAGED", p.fid_zbg])] },
     { id:"vedeni", file:"vedeni.geojson", kind:"line", label:"Elektrické vedení VVN a ZVN", note:"ZABAGED",
       style: p => p.kv >= 400 ? { color:"#7F1414", weight:3.4 } : p.kv >= 220 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 },
       legend: [ { label:"400 kV", t:{ kv:400 } }, { label:"220 kV", t:{ kv:220 } }, { label:"110 kV", t:{ kv:110 } } ],
@@ -127,8 +120,8 @@ const GROUPS = [
     { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"OSM", icon: mkHtml("ci","#00838F","V",16),
       popup: p => [p.name || (p.man_made === "wastewater_plant" ? "Čistírna odpadních vod" : "Úpravna vody"),
         rows(["Typ", p.man_made === "wastewater_plant" ? "čistírna odpadních vod" : "úpravna vody"], ["Provozovatel", p.operator])] },
-    { id:"chem", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/situace/udalost/", sub:"12" }, label:"Chemický a petrochemický průmysl",
-      note:"zóny havarijního plánování, PKR ÚK", icon: mkHtml("tri","#AD1457","!",20) }
+    { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", icon: mkHtml("tri","#AD1457","!",20),
+      popup: p => [p.nazev || "Chemický podnik", rows(["Lokalita", p.lokalita], ["Výroba", p.popis])] }
   ]},
   { title: "Složky IZS", layers: [
     { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
@@ -181,6 +174,7 @@ const PKR_GROUPS = [
     { id:"pkr_pov",  path:PKR_OHR, sub:"7",         label:"Povodně", ico:"/media/icons/u/7.gif" },
     { id:"pkr_ses",  path:PKR_OHR, sub:"2,3,4,5,6", label:"Sesuvy, posuvy, odvaly, proudy", ico:"/media/icons/u/2.gif" },
     { id:"pkr_dn",   path:PKR_OHR, sub:"15",        label:"Úseky častých dopravních nehod", ico:"/media/icons/u/15.gif" },
+    { id:"pkr_zhp",  path:PKR_OHR, sub:"12",        label:"Zóny havarijního plánování", ico:"/media/icons/u/12.gif" },
     { id:"pkr_mu",   path:"/pkr/zdroje-ohrozeni/jos/resenaudalost/", label:"Řešené MU/KS", note:"aktuálně řešené události", ico:"/static/situace/img/aktualni_udalost.gif" }
   ]},
   { title: "PKR ÚK – provozovny", layers: [

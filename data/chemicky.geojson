@@ -1,0 +1,80 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "ORLEN Unipetrol RPA",
+    "lokalita": "Litvínov (Záluží)",
+    "popis": "Největší petrochemický komplex v ČR, rafinérie ropy."
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.6133,
+     50.5642
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Spolek pro chemickou a hutní výrobu (Spolchemie)",
+    "lokalita": "Ústí nad Labem",
+    "popis": "Výroba epoxidových pryskyřic, hydroxidu sodného a chloru."
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.0253,
+     50.6628
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Lovochemie",
+    "lokalita": "Lovosice",
+    "popis": "Největší výrobce průmyslových a minerálních hnojiv v ČR."
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.0734,
+     50.5072
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Glatzova (dříve Precheza/Deza)",
+    "lokalita": "Děčín",
+    "popis": "Chemická výroba a zpracování (původně např. kyselina sírová)."
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     14.2045,
+     50.7482
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "nazev": "Enaspol",
+    "lokalita": "Rtyně nad Bílinou (Velvěty)",
+    "popis": "Výroba tenzidů, detergentů a stavební chemie."
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     13.8867,
+     50.5986
+    ]
+   }
+  }
+ ]
+}

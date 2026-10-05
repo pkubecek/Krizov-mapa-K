@@ -86,7 +86,7 @@ const GROUPS = [
       style: p => p.trida === "obcasny" ? { color:"#7FB6DD", weight:.8, dashArray:"3 3" } : { color:"#5AA7DA", weight:.9 },
       legend: [ { label:"stálé", t:{ trida:"stály" } }, { label:"občasné", t:{ trida:"obcasny" } } ],
       popup: p => ["Vodní linie", rows(["Typ", p.trida === "obcasny" ? "občasná" : "stálá"])] },
-    { id:"plochy", file:"vodni_plochy.geojson", kind:"area", label:"Vodní plochy", on:false,
+    { id:"plochy", file:"vodni_plochy.geojson", kind:"area", label:"Vodní plocha", on:false,
       style: plochaStyle,
       legend: [ { label:"přehradní nádrž", t:{ typ:"přehradní nádrž" } }, { label:"rybník", t:{ typ:"rybník" } },
                 { label:"antropogenní jezero (zatopené lomy)", t:{ typ:"antropogenní jezero" } },
@@ -97,7 +97,7 @@ const GROUPS = [
   { title: "Doprava", layers: [
     { id:"silnice", file:"silnice.geojson", kind:"line", label:"Dálnice a silnice I. třídy", on:true,
       style: silniceStyle,
-      legend: [ { label:"dálnice", t:{ trida:"D1" } }, { label:"Silnice pro motorová vozidla ", t:{ trida:"D2" } },
+      legend: [ { label:"dálnice", t:{ trida:"D1" } }, { label:"silnice pro motorová vozidla ", t:{ trida:"D2" } },
                 { label:"silnice I. třídy", t:{ trida:"I" } }, { label:"větve a nájezdy dálnic", t:{ trida:"D1", vetev:1 } },
                 { label:"větve silnic I. třídy", t:{ trida:"I", vetev:1 } } ],
       popup: p => [p.cislo || "Silnice", rows(["Kategorie", ({ D1:"dálnice", D2:"dálnice II. třídy", I:"silnice I. třídy" }[p.trida] || "") + (p.vetev ? " – větev" : "")])] },
@@ -107,26 +107,26 @@ const GROUPS = [
       popup: p => ["Železniční trať", rows(["Typ", p.elektr ? "elektrifikovaná" : "neelektrifikovaná"])] }
   ]},
   { title: "Kritická infrastruktura", layers: [
-    { id:"elek", file:"elektrarny.geojson", label:"Elektrárny nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
+    { id:"elek", file:"elektrarny.geojson", label:"Elektrárna nad 100 MW", note:"ZABAGED", icon: mkHtml("di","#F2C200","E",17,"#1A1F2B"),
       popup: p => [p.jmeno || "Elektrárna", rows(["Typ", p.typ], ["Výkon", p.vykon != null ? p.vykon.toLocaleString("cs") + " MW" : null])] },
-    { id:"tepl", file:"teplarny.geojson", label:"Teplárny a zdroje tepla", icon: mkHtml("di","#D84315","T",17),
+    { id:"tepl", file:"teplarny.geojson", label:"Teplárna nebo jiný zdroj tepla", icon: mkHtml("di","#D84315","T",17),
       popup: p => [p.nazev || "Teplárna", rows(["Typ", p.typ], ["Provozovatel", p.provozovatel], ["Lokalita", p.lokalita])] },
-    { id:"subst", file:"rozvodny.geojson", label:"Rozvodny a transformovny", note:"ZABAGED", icon: mkHtml("sq","#6A3FA0","R",16),
+    { id:"subst", file:"rozvodny.geojson", label:"Rozvodna nebo transformátor", note:"ZABAGED", icon: mkHtml("sq","#6A3FA0","R",16),
       popup: p => ["Rozvodna / transformovna", rows(["Napětí", p.napeti || "neuvedeno"], ["Plocha areálu", p.plocha_ha != null ? p.plocha_ha.toLocaleString("cs") + " ha" : null], ["ID ZABAGED", p.fid_zbg])] },
     { id:"vedeni", file:"vedeni.geojson", kind:"line", label:"Elektrické vedení VVN a ZVN", note:"ZABAGED",
       style: p => p.kv >= 400 ? { color:"#7F1414", weight:3.4 } : p.kv >= 220 ? { color:"#D0312D", weight:2.7 } : { color:"#E8792B", weight:2 },
       legend: [ { label:"400 kV", t:{ kv:400 } }, { label:"220 kV", t:{ kv:220 } }, { label:"110 kV", t:{ kv:110 } } ],
       popup: p => ["Elektrické vedení", rows(["Napětí", p.napeti])] },
-    { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"ZABAGED", icon: mkHtml("ci","#00838F","V",16),
+    { id:"water", file:"cisticky.geojson", label:"Úpravna vody a ČOV", note:"ZABAGED", icon: mkHtml("ci","#00838F","V",16),
       popup: p => [p.name || (p.man_made === "wastewater_plant" ? "Čistírna odpadních vod" : "Úpravna vody"),
         rows(["Typ", p.man_made === "wastewater_plant" ? "čistírna odpadních vod" : "úpravna vody"], ["Provozovatel", p.operator])] },
     { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", note:"ZABAGED", icon: mkHtml("di","#AD1457",picto("banka",18),18),
       popup: p => [p.nazev || "Chemický podnik", rows(["Lokalita", p.lokalita], ["Výroba", p.popis])] }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičská stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
       popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičská zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
@@ -134,10 +134,10 @@ const GROUPS = [
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",
       icon: mkHtml("di","#fff",picto("sanitka",19),19,"#D32F2F"), popup: () => ["Zdravotnická záchranná služba", []] },
-    { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliporty letecké záchranné služby",
+    { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliport letecké záchranné služby",
       icon: mkHtml("ci","#2E7D32","H",20),
       popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Noční provoz", p.nocni === "A" ? "ano" : p.nocni === "N" ? "ne" : null], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] },
-    { id:"heli", file:"heliporty.geojson", filter: p => !/HEMS/.test(p.typ || ""), label:"Ostatní heliporty",
+    { id:"heli", file:"heliporty.geojson", filter: p => !/HEMS/.test(p.typ || ""), label:"Jiný heliport",
       icon: mkHtml("ci","#fff","H",17,"#2E7D32"),
       popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] }
   ]}
@@ -145,7 +145,7 @@ const GROUPS = [
 
 const WMS = [
   { id:"zaplavy", label:"Záplavová území", note:"VÚV TGM – Q5, Q20, Q100, Q500, aktivní zóny",
-    url:"https://heis.vuv.cz/data/webmap/wms.dll", pick:/q100|aktivn/i, on:true },
+    url:"https://heis.vuv.cz/data/webmap/wms.dll", pick:/q100|aktivn/i, on:false },
   { id:"aopk", label:"Chráněná území (AOPK)", note:"oficiální hranice ZCHÚ",
     url:"https://gis.nature.cz/arcgis/services/UzemniOchrana/ChranUzemi/MapServer/WMSServer", pick:/velkopl|maloplo|přírodní park/i },
   { id:"sesuvy", label:"Svahové nestability (ČGS)", note:"sesuvy, proudy, řícení – registr ČGS", type:"arcgis",

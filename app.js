@@ -31,12 +31,13 @@ const Q = {
 const isHZS = t => /hasičský záchranný sbor|\bHZS\b/i.test((t.operator || "") + " " + (t.name || ""));
 
 /* symboly */
-/* piktogramy (bílé, 24×24) – kříž, štít, plamen, baňka podle běžných map */
+/* piktogramy (bílé, 24×24) – kříž, štít, plamen, baňka, sanitka podle běžných map */
 const PICTO = {
   kriz:   '<path d="M9.5 3h5v6.5H21v5h-6.5V21h-5v-6.5H3v-5h6.5z"/>',
   stit:   '<path d="M12 2 20 5v6c0 5.2-3.4 9.6-8 11-4.6-1.4-8-5.8-8-11V5z"/><path fill="var(--c)" d="m12 7 1.4 2.9 3.1.4-2.3 2.2.6 3.1L12 14.1l-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z"/>',
   plamen: '<path d="M13.5.7s.7 2.6.7 4.8c0 2-1.3 3.7-3.4 3.7-2 0-3.6-1.7-3.6-3.7v-.4C5.2 7.5 4 10.6 4 14a8 8 0 0 0 16 0c0-5.4-2.6-10.2-6.5-13.3M11.7 19a3.2 3.2 0 0 1-3.2-3.1c0-1.7 1-2.8 2.8-3.2 1.8-.3 3.6-1.2 4.6-2.6.4 1.3.6 2.7.6 4.1 0 2.6-2.1 4.8-4.8 4.8"/>',
-  banka:  '<path d="M9 2h6v2h-1v5.2l5.7 9.5A2.2 2.2 0 0 1 17.8 22H6.2a2.2 2.2 0 0 1-1.9-3.3L10 9.2V4H9z"/>'
+  banka:  '<path d="M9 2h6v2h-1v5.2l5.7 9.5A2.2 2.2 0 0 1 17.8 22H6.2a2.2 2.2 0 0 1-1.9-3.3L10 9.2V4H9z"/>',
+  sanitka: '<path d="M1 6.2C1 5.5 1.5 5 2.2 5H15v12H1z"/><path d="M15 8.5h4.6L23 12.6V17h-8z"/><circle cx="6" cy="18" r="2.6" stroke="var(--c)" stroke-width="1.4"/><circle cx="18" cy="18" r="2.6" stroke="var(--c)" stroke-width="1.4"/><path fill="var(--c)" d="M7 7.5h2v2.5h2.5v2H9v2.5H7V12H4.5v-2H7z"/><path fill="var(--c)" d="M16.4 10h2.7l2 2.4h-4.7z"/>'
 };
 const picto = (name, s) => `<svg viewBox="0 0 24 24" width="${Math.round(s * .78)}" height="${Math.round(s * .78)}" fill="currentColor" aria-hidden="true" style="display:block">${PICTO[name]}</svg>`;
 const mkHtml = (shape, c, glyph = "", s = 20, fg = "#fff") =>
@@ -123,16 +124,16 @@ const GROUPS = [
       popup: p => [p.nazev || "Chemický podnik", rows(["Lokalita", p.lokalita], ["Výroba", p.popis])] }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#fff",picto("plamen",19),19,"#C62828"), on:true,
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
       popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#fff",picto("plamen",14),14,"#E57373"),
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
-    { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#D32F2F",picto("kriz",19),19), on:true,
+    { id:"hosp", file:"nemocnice.geojson", label:"Nemocnice", icon: mkHtml("di","#fff",picto("kriz",19),19,"#D32F2F"), on:true,
       popup: p => [p.nazev || "Nemocnice", rows(["Typ", p.typ])] },
     { id:"zzs", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"19,18" }, label:"Záchranná služba", note:"stanoviště a střediska ZZS, PKR ÚK",
-      icon: mkHtml("di","#2E7D32",picto("kriz",19),19), popup: () => ["Zdravotnická záchranná služba", []] },
+      icon: mkHtml("di","#fff",picto("sanitka",19),19,"#D32F2F"), popup: () => ["Zdravotnická záchranná služba", []] },
     { id:"heli_lzs", file:"heliporty.geojson", filter: p => /HEMS/.test(p.typ || "") , label:"Heliporty letecké záchranné služby",
       icon: mkHtml("ci","#2E7D32","H",20),
       popup: p => [p.kod ? "Heliport " + p.kod : "Heliport", rows(["Typ", p.typ_p], ["Umístění", p.upres], ["Noční provoz", p.nocni === "A" ? "ano" : p.nocni === "N" ? "ne" : null], ["Nadm. výška", p.vyska != null ? p.vyska + " m" : null])] },
@@ -881,6 +882,22 @@ custom.querySelector("button").addEventListener("click", () => {
   addWms({ id, label, note:url.replace(/^https:\/\/[^/]+/, ""), url, pick:/./, on:true });
   wsec.appendChild(custom); custom.querySelector("input").value = "";
 });
+
+/* ================= maska mimo kraj ================= */
+/* Šedý polygon přes celý svět s dírou ve tvaru kraje. Pane "mask" leží nad WMS a plochami, ale pod liniemi a značkami. */
+const MASK_STYLE = { stroke:false, fillColor:"#808080", fillOpacity:.4, interactive:false, pane:"mask" };   /* 60 % průhlednost = krytí 0,4 */
+loadFile({ file:"kraj.geojson" }).then(fc => {
+  const toLL = ring => ring.map(([lon, lat]) => [lat, lon]);
+  const holes = [];
+  for (const f of fc.features || []) {
+    const g = f.geometry; if (!g) continue;
+    const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+    for (const p of polys) holes.push(toLL(p[0]));
+  }
+  if (!holes.length) return;
+  const world = [[-89.9, -539.9], [89.9, -539.9], [89.9, 539.9], [-89.9, 539.9]];
+  L.polygon([world, ...holes], MASK_STYLE).addTo(map);
+}).catch(e => console.warn("[maska kraje]", e));
 
 /* ================= start ================= */
 for (const id in state) if (state[id].cb.checked) toggleVector(id);

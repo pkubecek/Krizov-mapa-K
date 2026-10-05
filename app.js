@@ -145,7 +145,7 @@ const GROUPS = [
 
 const WMS = [
   { id:"zaplavy", label:"Záplavová území", note:"VÚV TGM – Q5, Q20, Q100, Q500, aktivní zóny",
-    url:"https://heis.vuv.cz/data/webmap/wms.dll", pick:/./},
+    url:"https://heis.vuv.cz/data/webmap/wms.dll", pick:/q100|aktivn/i, on:false },
   { id:"aopk", label:"Chráněná území (AOPK)", note:"oficiální hranice ZCHÚ",
     url:"https://gis.nature.cz/arcgis/services/UzemniOchrana/ChranUzemi/MapServer/WMSServer", pick:/velkopl|maloplo|přírodní park/i },
   { id:"sesuvy", label:"Svahové nestability (ČGS)", note:"sesuvy, proudy, řícení – registr ČGS", type:"arcgis",

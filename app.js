@@ -31,11 +31,12 @@ const Q = {
 const isHZS = t => /hasičský záchranný sbor|\bHZS\b/i.test((t.operator || "") + " " + (t.name || ""));
 
 /* symboly */
-/* piktogramy (bílé, 24×24) – kříž, štít, plamen podle běžných map */
+/* piktogramy (bílé, 24×24) – kříž, štít, plamen, baňka podle běžných map */
 const PICTO = {
   kriz:   '<path d="M9.5 3h5v6.5H21v5h-6.5V21h-5v-6.5H3v-5h6.5z"/>',
   stit:   '<path d="M12 2 20 5v6c0 5.2-3.4 9.6-8 11-4.6-1.4-8-5.8-8-11V5z"/><path fill="var(--c)" d="m12 7 1.4 2.9 3.1.4-2.3 2.2.6 3.1L12 14.1l-2.8 1.5.6-3.1-2.3-2.2 3.1-.4z"/>',
-  plamen: '<path d="M13.5.7s.7 2.6.7 4.8c0 2-1.3 3.7-3.4 3.7-2 0-3.6-1.7-3.6-3.7v-.4C5.2 7.5 4 10.6 4 14a8 8 0 0 0 16 0c0-5.4-2.6-10.2-6.5-13.3M11.7 19a3.2 3.2 0 0 1-3.2-3.1c0-1.7 1-2.8 2.8-3.2 1.8-.3 3.6-1.2 4.6-2.6.4 1.3.6 2.7.6 4.1 0 2.6-2.1 4.8-4.8 4.8"/>'
+  plamen: '<path d="M13.5.7s.7 2.6.7 4.8c0 2-1.3 3.7-3.4 3.7-2 0-3.6-1.7-3.6-3.7v-.4C5.2 7.5 4 10.6 4 14a8 8 0 0 0 16 0c0-5.4-2.6-10.2-6.5-13.3M11.7 19a3.2 3.2 0 0 1-3.2-3.1c0-1.7 1-2.8 2.8-3.2 1.8-.3 3.6-1.2 4.6-2.6.4 1.3.6 2.7.6 4.1 0 2.6-2.1 4.8-4.8 4.8"/>',
+  banka:  '<path d="M9 2h6v2h-1v5.2l5.7 9.5A2.2 2.2 0 0 1 17.8 22H6.2a2.2 2.2 0 0 1-1.9-3.3L10 9.2V4H9z"/>'
 };
 const picto = (name, s) => `<svg viewBox="0 0 24 24" width="${Math.round(s * .78)}" height="${Math.round(s * .78)}" fill="currentColor" aria-hidden="true" style="display:block">${PICTO[name]}</svg>`;
 const mkHtml = (shape, c, glyph = "", s = 20, fg = "#fff") =>
@@ -118,13 +119,13 @@ const GROUPS = [
     { id:"water", file:"cisticky.geojson", label:"Úpravny vod a ČOV", note:"ZABAGED", icon: mkHtml("ci","#00838F","V",16),
       popup: p => [p.name || (p.man_made === "wastewater_plant" ? "Čistírna odpadních vod" : "Úpravna vody"),
         rows(["Typ", p.man_made === "wastewater_plant" ? "čistírna odpadních vod" : "úpravna vody"], ["Provozovatel", p.operator])] },
-    { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", note:"ZABAGED", icon: mkHtml("tri","#AD1457","!",20),
+    { id:"chem", file:"chemicky.geojson", label:"Chemický a petrochemický průmysl", note:"ZABAGED", icon: mkHtml("di","#AD1457",picto("banka",18),18),
       popup: p => [p.nazev || "Chemický podnik", rows(["Lokalita", p.lokalita], ["Výroba", p.popis])] }
   ]},
   { title: "Složky IZS", layers: [
-    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#C62828",picto("plamen",19),19), on:true,
+    { id:"hzs", file:"hasici.geojson", filter: p => p.typ !== "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"14" }, note:"ZABAGED + PKR ÚK", label:"Hasičské stanice", icon: mkHtml("di","#fff",picto("plamen",19),19,"#C62828"), on:true,
       popup: p => ["Hasičská stanice " + (p.obec || ""), rows(["Typ", p.typ_p], ["Obec", p.obec], ["ID JPO", p.id_jpo])] },
-    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#E57373",picto("plamen",14),14),
+    { id:"sdh", file:"hasici.geojson", filter: p => p.typ === "HZ", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"21" }, note:"ZABAGED + PKR ÚK", label:"Hasičské zbrojnice", icon: mkHtml("di","#fff",picto("plamen",14),14,"#E57373"),
       popup: p => ["Hasičská zbrojnice " + (p.obec || ""), rows(["Obec", p.obec], ["ID JPO", p.id_jpo])] },
     { id:"pcr", file:"policie.geojson", pkrSrc:{ path:"/pkr/zdroje-ohrozeni/provoz/provozovna/", sub:"17" }, note:"ZABAGED + PKR ÚK", label:"Policie ČR", icon: mkHtml("di","#1D3C8F",picto("stit",19),19), on:true,
       popup: p => [p.nazev || "Policie ČR", rows(["Typ", p.typ_p])] },
